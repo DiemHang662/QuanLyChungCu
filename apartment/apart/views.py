@@ -93,3 +93,32 @@ class SurveyResultViewSet(viewsets.ModelViewSet):
             serializer.save(resident=request.user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def list(self, request): # trả về danh sách các kết quả khảo sát
+        queryset = self.queryset.filter(resident=request.user)
+        serializer = self.serializer_class(queryset, many=True)
+        return Response(serializer.data)
+
+    def retrieve(self, request, pk=None): #trả về thông tin khảo sát cụ thể dựa trên pk của user
+        survey_result = self.queryset.filter(resident=request.user, pk=pk).first()
+        if not survey_result:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        serializer = self.serializer_class(survey_result)
+        return Response(serializer.data)
+
+    def update(self, request, pk=None):#cho phép user chỉnh sửa khảo sát
+        survey_result = self.queryset.filter(resident=request.user, pk=pk).first()
+        if not survey_result:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        serializer = self.serializer_class(survey_result, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def destroy(self, request, pk=None):# user xóa một kết quả khảo sá
+        survey_result = self.queryset.filter(resident=request.user, pk=pk).first()
+        if not survey_result:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        survey_result.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
