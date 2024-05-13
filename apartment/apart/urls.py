@@ -5,6 +5,7 @@ from .admin import admin_site
 from rest_framework.routers import DefaultRouter
 
 router = DefaultRouter()
+router.register(r'residents', views.ResidentViewSet, basename='resident')
 router.register('flats', views.FlatViewSet)
 router.register('item',views.ItemViewSet)
 router.register('Feedback', views.FeedbackViewSet)

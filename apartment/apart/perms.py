@@ -5,5 +5,5 @@ class ResidentAuthenticated(permissions.IsAuthenticated):
 
 class OwnerAuthenticated(permissions.IsAuthenticated):
     def has_object_permission(self, request, view, obj):
-        return self.has_permission(request, view) and request.user == obj.resident
+        return self.has_permission(request, view) and request.user == obj.admin
 

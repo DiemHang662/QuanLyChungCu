@@ -6,10 +6,23 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from . import perms
 from .models import Flat, Item, Resident, Feedback, Survey, SurveyResult
-from .serializers import ItemSerializer, SurveySerializer, SurveyResultSerializer
-from .serializers import FlatSerializer
-from .serializers import FeedbackSerializer
-from .perms import OwnerAuthenticated
+from .serializers import ResidentSerializer, FlatSerializer, ItemSerializer, FeedbackSerializer, SurveySerializer, SurveyResultSerializer
+
+class ResidentViewSet(viewsets.ModelViewSet):
+    queryset = Resident.objects.all()
+    serializer_class = ResidentSerializer
+
+    def get_permissions(self):
+        if self.action == 'create_post':
+            return [permissions.IsAuthenticated()]  # Example custom permission
+        elif self.action == 'current_user':
+            return [permissions.IsAuthenticated()]
+        return [permissions.AllowAny()]
+
+    @action(methods=['GET'], detail=False, url_path='current_user', url_name='current_user')
+    def current_user(self, request):
+        serializer = self.get_serializer(request.user)  # Use get_serializer method
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class FlatViewSet(viewsets.ModelViewSet):
     queryset = Flat.objects.all()

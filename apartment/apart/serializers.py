@@ -15,10 +15,13 @@ class AvatarSerializers(ModelSerializer):
         if user.avatar:
             request = self.context.get('request')
             if request:
-                return request.build_absolute_uri(user.avatar)
+                return request.build_absolute_uri(user.avatar.url)
             return user.avatar.url
         return None
 
+    class Meta:
+        model = Resident
+        fields = ('avatar',)
 
 class ResidentSerializers(AvatarSerializers):
 
@@ -28,6 +31,7 @@ class ResidentSerializers(AvatarSerializers):
         extra_kwargs = {
             'password': {'write_only': True},
         }
+
 class FlatSerializer(ModelSerializer):
     class Meta:
         model = Flat

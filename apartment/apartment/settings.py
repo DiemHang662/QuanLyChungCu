@@ -11,6 +11,14 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+import cloudinary.api
+
+cloudinary.config(
+    cloud_name="dmjydfpev",
+    api_key="153344775849929",
+    api_secret="soU85tUSegDS6ZqoM1l6jERP7Ug",
+    secure=True
+)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -24,8 +32,7 @@ SECRET_KEY = 'django-insecure-o5k=0(s^dw%)bw)^+%2&8a*t(*_f+usid$c_-c8z8#xsj1rk5j
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
-
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -39,6 +46,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'apart',
+    'cloudinary',
     'oauth2_provider',
     'drf_yasg',
 ]
