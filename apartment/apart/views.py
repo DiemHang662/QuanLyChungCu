@@ -1,3 +1,4 @@
+from django.db.models import Avg, Count
 from django.shortcuts import render
 from django.http import HttpResponse, Http404
 from django.views import View
@@ -56,14 +57,15 @@ class ItemViewSet(viewsets.ModelViewSet):
 class FeedbackViewSet(viewsets.ViewSet):
     queryset = Feedback.objects.all()
     serializer_class = FeedbackSerializer
-    permission_classes = [perms.OwnerAuthenticated]
+    permission_classes = [permissions.IsAdminUser]
 
-    def list(self, request): # lấy danh sách các phản ánh hiện tại
+    def list(self, request):
         queryset = Feedback.objects.filter(resident=request.user)
         serializer = FeedbackSerializer(queryset, many=True)
         return Response(serializer.data)
 
-    def create(self, request):  #Tạo một phản ánh mới.
+
+    def create(self, request):
         serializer = FeedbackSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save(resident=request.user)
@@ -71,7 +73,7 @@ class FeedbackViewSet(viewsets.ViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['put'])
-    def resolve(self, request, pk=None): # Tick tình trạng đã hoàn thành chưa
+    def resolve(self, request, pk=None):
         feedback = self.get_object(pk)
         feedback.resolved = True
         feedback.save()
@@ -84,54 +86,74 @@ class FeedbackViewSet(viewsets.ViewSet):
         except Feedback.DoesNotExist:
             raise Http404
 
+
 class SurveyViewSet(viewsets.ModelViewSet):
     queryset = Survey.objects.all()
     serializer_class = SurveySerializer
+    permission_classes = [permissions.IsAdminUser]
 
-    def create(self, request, *args, **kwargs): #API để ban quản trị có thể tạo mới các phiếu khảo sát
-        serializer = self.get_serializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save(creator=request.user)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    def list(self, request):
+        queryset = self.get_queryset()
+        serializer = self.serializer_class(queryset, many=True)
+        return Response(serializer.data)
+
+def retrieve(self, request, pk=None):
+    survey = self.get_object()
+    serializer = self.serializer_class(survey)
+    return Response(serializer.data)
 
 #API để cư dân có thể thực hiện khảo sát và gửi kết quả về.
 class SurveyResultViewSet(viewsets.ModelViewSet):
     queryset = SurveyResult.objects.all()
     serializer_class = SurveyResultSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
-    def create(self, request, *args, **kwargs): # Điền vào khảo sát
+    def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
             serializer.save(resident=request.user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def list(self, request): # trả về danh sách các kết quả khảo sát
-        queryset = self.queryset.filter(resident=request.user)
+    def list(self, request):
+        queryset = self.get_queryset()
         serializer = self.serializer_class(queryset, many=True)
         return Response(serializer.data)
 
-    def retrieve(self, request, pk=None): #trả về thông tin khảo sát cụ thể dựa trên pk của user
-        survey_result = self.queryset.filter(resident=request.user, pk=pk).first()
-        if not survey_result:
-            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+    def retrieve(self, request, pk=None):
+        survey_result = self.get_object()
         serializer = self.serializer_class(survey_result)
         return Response(serializer.data)
 
-    def update(self, request, pk=None):#cho phép user chỉnh sửa khảo sát
-        survey_result = self.queryset.filter(resident=request.user, pk=pk).first()
-        if not survey_result:
-            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+    def update(self, request, pk=None):
+        survey_result = self.get_object()
         serializer = self.serializer_class(survey_result, data=request.data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def destroy(self, request, pk=None):# user xóa một kết quả khảo sá
-        survey_result = self.queryset.filter(resident=request.user, pk=pk).first()
-        if not survey_result:
-            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+    def destroy(self, request, pk=None):
+        survey_result = self.get_object()
         survey_result.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+class SurveyResultStatsViewSet(viewsets.ViewSet):
+    permission_classes = [permissions.IsAdminUser]
+
+    def list(self, request):
+        survey_results = SurveyResult.objects.all()
+        cleanliness_counts = survey_results.values('cleanliness_rating').annotate(count=Count('cleanliness_rating'))
+
+        cleanliness_stats = {}
+        for item in cleanliness_counts:
+            cleanliness_rating = item['cleanliness_rating']
+            count = item['count']
+            cleanliness_stats[cleanliness_rating] = count
+
+        return Response(cleanliness_stats)
+
+
