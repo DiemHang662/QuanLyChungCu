@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path, re_path, include
 from . import views
-from .admin import admin_site
+from .admin import admin_site, MyApartAdminSite
 from rest_framework.routers import DefaultRouter
 from .models import SurveyResult
 from .views import StatisticalViewSet
@@ -18,6 +18,7 @@ router.register('statistics', StatisticalViewSet, basename='statistics')
 urlpatterns = [
     path('', include(router.urls)),
     path('admin/', admin_site.urls),
+    path('api/', include(router.urls)),
     path('api/statistics/<int:pk>/', StatisticalViewSet.as_view({'get': 'retrieve'}), name='statistics-api'),
 
 ]

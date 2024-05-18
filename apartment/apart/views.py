@@ -6,7 +6,7 @@ from django.shortcuts import render
 from django.http import HttpResponse, Http404, JsonResponse
 from django.views import View
 from rest_framework import viewsets, permissions, status, generics
-from rest_framework.permissions import IsAdminUser
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.views import APIView
@@ -63,7 +63,7 @@ class ItemViewSet(viewsets.ModelViewSet):
 class FeedbackViewSet(viewsets.ModelViewSet):
     queryset = Feedback.objects.all()
     serializer_class = FeedbackSerializer
-    permission_classes = [IsOwnerOrReadOnly, IsAdminUser]
+    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly, IsAdminUser]
 
     def list(self, request):
         queryset = Feedback.objects.filter(resident=request.user)
@@ -158,13 +158,13 @@ class SurveyResultViewSet(viewsets.ViewSet):
 
 class StatisticalViewSet(viewsets.ViewSet):
     def list(self, request):
-        return render(request, 'statistical.html', {"message": "Please provide a survey_id to get cleanliness statistics."}, status=400)
+        return render(request, 'admin/statistical.html', {"message": "Please provide a survey_id to get cleanliness statistics."}, status=400)
 
     def retrieve(self, request, pk=None):
         try:
             queryset = SurveyResult.objects.filter(survey_id=pk)
             if not queryset.exists():
-                return render(request, 'statistical.html', {"message": "Survey with the specified ID does not exist."}, status=404)
+                return render(request, 'admin/statistical.html', {"message": "Survey with the specified ID does not exist."}, status=404)
 
             stats = queryset.aggregate(
                 maximum_cleanliness=Max('cleanliness_rating'),
@@ -179,6 +179,6 @@ class StatisticalViewSet(viewsets.ViewSet):
                 'maximum_services': stats['maximum_services']
             })
 
-            return render(request, 'statistical.html', {'stats_json': stats_json})
+            return render(request, 'admin/statistical.html', {'stats_json': stats_json})
         except Exception as e:
-            return render(request, 'statistical.html', {"message": str(e)}, status=500)
+            return render(request, 'admin/statistical.html', {"message": str(e)}, status=500)

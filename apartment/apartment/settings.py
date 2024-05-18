@@ -139,3 +139,15 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CLIENT_ID = 'ZXoWiKueHs7UMyt4uny6seyCvdOvl7eIzPkKaXKy'
 CLIENT_SECRET='GytcYJeevnUUatXMFMzW7D2u0NPUzGzyYTWmTPXMw60hXXxOiy48F0cBEqt6LQCLs5xrDGeHA0urTrqIZO4Q8kWBf2M4e43U3aVwax8NbbMvlr6lgorT3xpQRgexLh8n'
+
+REST_FRAMEWORK = {
+
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'oauth2_provider.contrib.rest_framework.OAuth2Authentication',
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.TokenAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+}
