@@ -3,19 +3,21 @@ from django.urls import path, re_path, include
 from . import views
 from .admin import admin_site
 from rest_framework.routers import DefaultRouter
-
-from .views import SurveyResultStatsViewSet
+from .models import SurveyResult
+from .views import StatisticalViewSet
 
 router = DefaultRouter()
-router.register(r'residents', views.ResidentViewSet, basename='resident')
-router.register('flats', views.FlatViewSet)
-router.register('item',views.ItemViewSet)
-router.register('feedback',views.FeedbackViewSet)
-router.register('Survey', views.SurveyViewSet)
-router.register('SurveyResult', views.SurveyResultViewSet)
-router.register(r'survey-result-stats', SurveyResultStatsViewSet, basename='survey-result-stats')
+router.register('residents', views.ResidentViewSet, basename='resident')
+router.register('flats', views.FlatViewSet,basename='flat')
+router.register('items',views.ItemViewSet,basename='item')
+router.register('feedback',views.FeedbackViewSet, basename='feedback')
+router.register('survey', views.SurveyViewSet, basename='survey')
+router.register('surveyresult', views.SurveyResultViewSet,basename='survey-result')
+router.register('statistics', StatisticalViewSet, basename='statistics')
 
 urlpatterns = [
     path('', include(router.urls)),
     path('admin/', admin_site.urls),
+    path('api/statistics/<int:pk>/', StatisticalViewSet.as_view({'get': 'retrieve'}), name='statistics-api'),
+
 ]
