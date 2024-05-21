@@ -5,7 +5,7 @@ from cloudinary.models import CloudinaryField
 
 class Resident(AbstractUser):
     avatar = CloudinaryField(null=True)
-
+    is_active = models.BooleanField(default=True)
     def __str__(self):
         return self.username
 
@@ -22,7 +22,12 @@ class Bill(models.Model):
     issue_date = models.DateField()
     due_date = models.DateField()
     bill_type = models.CharField(max_length=50)
-    payment_status = models.CharField(max_length=10, default='UNPAID')
+    status_choices = [
+        ('UNPAID', 'Unpaid'),
+        ('PAID', 'Paid'),
+    ]
+    payment_status = models.CharField(max_length=10, choices=status_choices, default='UNPAID')
+
 
     def __str__(self):
         return self.bill_type
@@ -38,6 +43,15 @@ class Item(models.Model):
 
     def __str__(self):
         return self.name
+
+class FaMember(models.Model):
+    name = models.CharField(max_length=100)
+    resident = models.ForeignKey(Resident, on_delete=models.CASCADE)
+    numberXe = models.CharField(max_length=8)
+
+    def __str__(self):
+        return self.name
+
 class Feedback(models.Model):
     title = models.CharField(max_length=70, default='Mất điện')
     resident = models.ForeignKey(Resident, on_delete=models.CASCADE)

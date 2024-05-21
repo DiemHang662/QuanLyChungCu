@@ -59,6 +59,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apart.middleware.CheckIsActiveMiddleware',
 ]
 
 ROOT_URLCONF = 'apartment.urls'
@@ -77,6 +78,10 @@ TEMPLATES = [
             ],
         },
     },
+]
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
 WSGI_APPLICATION = 'apartment.wsgi.application'
@@ -115,7 +120,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 
@@ -137,8 +141,8 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-CLIENT_ID = 'ZXoWiKueHs7UMyt4uny6seyCvdOvl7eIzPkKaXKy'
-CLIENT_SECRET='GytcYJeevnUUatXMFMzW7D2u0NPUzGzyYTWmTPXMw60hXXxOiy48F0cBEqt6LQCLs5xrDGeHA0urTrqIZO4Q8kWBf2M4e43U3aVwax8NbbMvlr6lgorT3xpQRgexLh8n'
+CLIENT_ID = 'Oyl13CtUf1P9FE39omeIFcArmR95erKvk151Jhpl'
+CLIENT_SECRET='vxPObcUCtPZ25ZxHzujWQew34clKvPioOxLJuBYY8VYKBqFreHYjOxV1lamby4SIMwYJzjIWXWeKBTd9CCLKeg8ubbBfY4p99iqHkQPHnOpbWkuhwyer9hYFjDH64x9n'
 
 REST_FRAMEWORK = {
 
@@ -151,3 +155,5 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ],
 }
+
+
