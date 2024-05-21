@@ -94,11 +94,13 @@ class BillViewSet(viewsets.ModelViewSet):
     serializer_class = BillSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self): #tra cứu hóa đơn
-        queryset = self.queryset
-        q = self.request.query_params.get('q')
-        if q:
-            queryset = queryset.filter(bill_type__icontains=q)
+    def get_queryset(self):
+        return Bill.objects.filter(resident=self.request.user)
+    #def get_queryset(self): #tra cứu hóa đơn
+        #queryset = self.queryset
+        #q = self.request.query_params.get('q')
+        #if q:
+            #queryset = queryset.filter(bill_type__icontains=q)
 
 
 class FaMemberViewSet(viewsets.ModelViewSet):
