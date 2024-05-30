@@ -24,13 +24,12 @@ class ResidentViewSet(viewsets.ModelViewSet):
         if self.action in ['get_current_user', 'lock_account', 'check_account_status', 'create_new_account']:
             return [permissions.IsAuthenticated()]
         return [permissions.AllowAny()]
-    @action(methods=['post'], detail=False, url_path='create-new-account')
-    def create_new_account(self, request):
-        serializer = ResidentSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return Resident.objects.filter(id=user.id)
+        return Resident.objects.all()
 
     @action(methods=['get', 'patch'], url_path='current-user', detail=False)
     def get_current_user(self, request):
@@ -90,18 +89,13 @@ class ItemViewSet(viewsets.ModelViewSet):
 
 
 class BillViewSet(viewsets.ModelViewSet):
-    queryset = Bill.objects.filter(payment_status='Paid')
     serializer_class = BillSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
+    permission_classes = [IsAuthenticated]
     def get_queryset(self):
-        return Bill.objects.filter(resident=self.request.user)
-    #def get_queryset(self): #tra cứu hóa đơn
-        #queryset = self.queryset
-        #q = self.request.query_params.get('q')
-        #if q:
-            #queryset = queryset.filter(bill_type__icontains=q)
-
+        resident = self.request.user
+        if resident.is_superuser:
+            return Bill.objects.all()  # If the user is a superuser, return all bills
+        return Bill.objects.filter(resident=self.request.user, payment_status='PAID')
 
 class FaMemberViewSet(viewsets.ModelViewSet):
     queryset = FaMember.objects.all()
