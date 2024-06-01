@@ -4,7 +4,7 @@ from cloudinary.models import CloudinaryField
 # Create your models here.
 
 class Resident(AbstractUser):
-    avatar = CloudinaryField(null=True)
+    avatar = CloudinaryField('avatar',null=True)
     is_active = models.BooleanField(default=True)
     def __str__(self):
         return self.username

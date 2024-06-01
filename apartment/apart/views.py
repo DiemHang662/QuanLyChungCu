@@ -160,14 +160,13 @@ class SurveyViewSet(viewsets.ModelViewSet):
         serializer = self.serializer_class(survey)
         return Response(serializer.data)
 
-
-#API để cư dân có thể thực hiện khảo sát và gửi kết quả về.
-class SurveyResultViewSet(viewsets.ViewSet):
+class SurveyResultViewSet(viewsets.ModelViewSet):
     queryset = SurveyResult.objects.all()
     serializer_class = SurveyResultSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self): # User chỉ xem được của mình
+    def get_queryset(self):
+        # User chỉ xem được của mình
         return SurveyResult.objects.filter(resident=self.request.user)
 
     def create(self, request, *args, **kwargs):
@@ -179,12 +178,12 @@ class SurveyResultViewSet(viewsets.ViewSet):
 
     def list(self, request):
         queryset = self.get_queryset()
-        serializer = self.serializer_class(queryset, many=True)
+        serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
     def retrieve(self, request, pk=None):
         survey_result = self.get_object()
-        serializer = self.serializer_class(survey_result)
+        serializer = self.get_serializer(survey_result)
         return Response(serializer.data)
 
     def update(self, request, pk=None):
@@ -192,7 +191,7 @@ class SurveyResultViewSet(viewsets.ViewSet):
         # Ensure that only the owner can update their own survey result
         if survey_result.resident != request.user:
             return Response(status=status.HTTP_403_FORBIDDEN)
-        serializer = self.serializer_class(survey_result, data=request.data)
+        serializer = self.get_serializer(survey_result, data=request.data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
@@ -231,3 +230,4 @@ class StatisticalViewSet(viewsets.ViewSet):
             return render(request, 'admin/statistical.html', {'stats_json': stats_json})
         except Exception as e:
             return render(request, 'admin/statistical.html', {"message": str(e)}, status=500)
+

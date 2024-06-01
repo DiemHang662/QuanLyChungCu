@@ -5,6 +5,7 @@ from rest_framework.serializers import ModelSerializer
 from .models import Resident, Flat, Bill, Item, Feedback, Survey, FaMember, SurveyResult
 
 class ResidentSerializer(ModelSerializer):
+    avatar_url= SerializerMethodField()
 
     def get_avatar_url(self, instance):
         if instance.avatar:
@@ -12,11 +13,11 @@ class ResidentSerializer(ModelSerializer):
             if request:
                 return request.build_absolute_uri(instance.avatar.url)
             return instance.avatar.url
-        return None  # Return None or a default URL if avatar is None
+        return None
 
     def to_representation(self, instance):
         rep = super().to_representation(instance)
-        rep['avatar'] = self.get_avatar_url(instance)
+        rep['avatar_url'] = self.get_avatar_url(instance)
         return rep
 
     def create(self, validated_data):  # đăng kí
@@ -26,7 +27,7 @@ class ResidentSerializer(ModelSerializer):
         return resident
     class Meta:
         model = Resident
-        fields = ['id', 'first_name', 'last_name', 'email', 'username', 'password', 'avatar']
+        fields = ['id', 'first_name', 'last_name', 'email', 'username', 'password', 'avatar_url']
         extra_kwargs = {
             'password': {
                 'write_only': True
