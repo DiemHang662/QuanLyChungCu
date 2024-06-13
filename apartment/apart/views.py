@@ -21,15 +21,19 @@ class ResidentViewSet(viewsets.ModelViewSet):
     serializer_class = ResidentSerializer
 
     def get_permissions(self):
-        if self.action in ['get_current_user', 'lock_account', 'check_account_status', 'create_new_account']:
+        if self.action in ['get_current_user', 'lock_account', 'check_account_status']:
             return [permissions.IsAuthenticated()]
+        elif self.action == 'create_new_account':
+            return [permissions.AllowAny()]
         return [permissions.AllowAny()]
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_staff:
+        if user.is_superuser:
+            return Resident.objects.all()
+        elif user.is_staff:
             return Resident.objects.filter(id=user.id)
-        return Resident.objects.all()
+        return Resident.objects.none()
 
     @action(methods=['get', 'patch'], url_path='current-user', detail=False)
     def get_current_user(self, request):
@@ -38,7 +42,7 @@ class ResidentViewSet(viewsets.ModelViewSet):
             for k, v in request.data.items():
                 setattr(user, k, v)
             user.save()
-        return Response(ResidentSerializer(user).data)
+        return Response(ResidentSerializer(user, context={'request': request}).data)
 
     @action(methods=['post'], detail=True, url_path='lock-account')
     def lock_account(self, request, pk=None):
@@ -91,11 +95,27 @@ class ItemViewSet(viewsets.ModelViewSet):
 class BillViewSet(viewsets.ModelViewSet):
     serializer_class = BillSerializer
     permission_classes = [IsAuthenticated]
+
     def get_queryset(self):
         resident = self.request.user
-        if resident.is_superuser:
-            return Bill.objects.all()  # If the user is a superuser, return all bills
-        return Bill.objects.filter(resident=self.request.user, payment_status='PAID')
+        queryset = Bill.objects.all() if resident.is_superuser else Bill.objects.filter(resident=resident)
+
+        payment_status = self.request.query_params.get('payment_status', None)
+        if payment_status:
+            if payment_status.lower() == 'paid':
+                queryset = queryset.filter(payment_status='PAID')
+            elif payment_status.lower() == 'unpaid':
+                queryset = queryset.filter(payment_status='UNPAID')
+        return queryset
+
+
+class PaymentViewSet(viewsets.ModelViewSet): #hóa đơn chưa thanh toán
+    serializer_class = BillSerializer
+    permission_classes = [IsAuthenticated]
+    def get_queryset(self):
+        resident = self.request.user
+        queryset = Bill.objects.filter(payment_status='UNPAID') if resident.is_superuser else Bill.objects.filter(resident=resident)
+        return queryset
 
 class FaMemberViewSet(viewsets.ModelViewSet):
     queryset = FaMember.objects.all()
