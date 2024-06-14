@@ -56,6 +56,7 @@ class ResidentViewSet(viewsets.ModelViewSet):
         user = self.get_object()
         return Response({'is_active': user.is_active}, status=status.HTTP_200_OK)
 
+
     @action(methods=['post'], url_path='create-new-account', detail=False)
     def create_new_account(self, request):
         serializer = self.get_serializer(data=request.data)

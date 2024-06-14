@@ -7,6 +7,8 @@ from .models import Resident, Flat, Bill, Item, Feedback, Survey, FaMember, Surv
 class ResidentSerializer(serializers.ModelSerializer):
     avatar_url = serializers.SerializerMethodField()
     avatar = serializers.ImageField(write_only=True, required=False)
+    is_staff = serializers.BooleanField(required=False, default=False)
+    is_superuser = serializers.BooleanField(required=False, default=False)
 
     def get_avatar_url(self, instance):
         if instance.avatar:
@@ -32,7 +34,7 @@ class ResidentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Resident
-        fields = ['id', 'first_name', 'last_name', 'email', 'username', 'password', 'avatar', 'avatar_url']
+        fields = ['id', 'first_name', 'last_name', 'email', 'username', 'password', 'avatar', 'avatar_url', 'is_staff', 'is_superuser']
         extra_kwargs = {
             'password': {'write_only': True},
             'is_active': {'read_only': True}
