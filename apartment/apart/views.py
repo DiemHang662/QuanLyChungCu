@@ -87,7 +87,7 @@ class ItemViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='mark-received')
     def mark_received(self, request, pk=None):
         item = self.get_object()
-        if item.resident == request.user:  # Kiểm tra xem mục này thuộc về cư dân đang đăng nhập hay không
+        if item.resident == request.user:
             item.status = 'RECEIVED'
             item.save()
         return Response({'status': 'Item is received by resident'}, status=status.HTTP_200_OK)
@@ -109,6 +109,12 @@ class BillViewSet(viewsets.ModelViewSet):
                 queryset = queryset.filter(payment_status='UNPAID')
         return queryset
 
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(payment_status='PAID')  # Cập nhật trạng thái thanh toán thành 'PAID'
+        return Response(serializer.data)
 
 class PaymentViewSet(viewsets.ModelViewSet): #hóa đơn chưa thanh toán
     serializer_class = BillSerializer
@@ -125,20 +131,18 @@ class FaMemberViewSet(viewsets.ModelViewSet):
     def get_queryset(self): # Chỉ xem được của mình
         return FaMember.objects.filter(resident=self.request.user)
 
-class VNPayCheckoutAPI(APIView):
-    def post(self, request, *args, **kwargs):
-        amount = request.data.get('amount')
-        order_info = request.data.get('order_info')
-        payment_data = vnpay.create_payment_data(amount=amount, order_info=order_info)
-        return Response(payment_data)
-
 class FeedbackViewSet(viewsets.ModelViewSet):
     queryset = Feedback.objects.all()
     serializer_class = FeedbackSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        if self.request.user.is_superuser:
+            return Feedback.objects.all()
+        return Feedback.objects.filter(resident=self.request.user)
+
     def list(self, request):
-        queryset = Feedback.objects.filter(resident=request.user)
+        queryset = self.get_queryset()
         serializer = FeedbackSerializer(queryset, many=True)
         return Response(serializer.data)
 
@@ -151,17 +155,21 @@ class FeedbackViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['put'], permission_classes=[IsAdminUser])
     def resolve(self, request, pk=None):
-        feedback = self.get_object(pk)
+        feedback = self.get_object()
         feedback.resolved = True
         feedback.save()
         serializer = FeedbackSerializer(feedback)
         return Response(serializer.data)
 
-    def get_object(self, pk):
+    def get_object(self):
         try:
-            return Feedback.objects.get(pk=pk, resident=self.request.user)
+            feedback = super().get_object()
+            if self.request.user.is_superuser or feedback.resident == self.request.user:
+                return feedback
+            raise Http404
         except Feedback.DoesNotExist:
             raise Http404
+
 
 class SurveyViewSet(viewsets.ModelViewSet):
     queryset = Survey.objects.all()

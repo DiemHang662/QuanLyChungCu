@@ -34,7 +34,7 @@ class ResidentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Resident
-        fields = ['id', 'first_name', 'last_name', 'email', 'username', 'password', 'avatar', 'avatar_url', 'is_staff', 'is_superuser']
+        fields = ['id', 'first_name', 'last_name', 'email','phone', 'username', 'password', 'avatar', 'avatar_url', 'is_staff', 'is_superuser']
         extra_kwargs = {
             'password': {'write_only': True},
             'is_active': {'read_only': True}
@@ -51,9 +51,12 @@ class ItemSerializer(ModelSerializer):
         fields = '__all__'
 
 class BillSerializer(ModelSerializer):
+    first_name = serializers.CharField(source='resident.first_name')
+    last_name = serializers.CharField(source='resident.last_name')
+    phone= serializers.CharField(source='resident.phone')
     class Meta:
         model = Bill
-        fields = '__all__'
+        fields = ['id', 'first_name', 'last_name','phone', 'bill_type','issue_date','due_date', 'amount', 'payment_status']
 
 class FaMemberSerializer(ModelSerializer):
     class Meta:
