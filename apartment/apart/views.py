@@ -92,23 +92,42 @@ class ItemViewSet(viewsets.ModelViewSet):
             item.save()
         return Response({'status': 'Item is received by resident'}, status=status.HTTP_200_OK)
 
-
 class BillViewSet(viewsets.ModelViewSet):
     serializer_class = BillSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         resident = self.request.user
-        queryset = Bill.objects.all() if resident.is_superuser else Bill.objects.filter(resident=resident)
+        if resident.is_superuser:
+            queryset = Bill.objects.all()
+        else:
+            queryset = Bill.objects.filter(resident=resident)
 
         payment_status = self.request.query_params.get('payment_status', None)
         if payment_status:
-            if payment_status.lower() == 'paid':
-                queryset = queryset.filter(payment_status='PAID')
-            elif payment_status.lower() == 'unpaid':
-                queryset = queryset.filter(payment_status='UNPAID')
+            queryset = queryset.filter(payment_status=payment_status.upper())
         return queryset
 
+    @action(methods=['post'], detail=False, url_path='create-bill')
+    def create_bill(self, request, *args, **kwargs):
+        if not request.user.is_superuser:
+            return Response({"error": "Only superusers can create bills"}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+
+
+class PaymentViewSet(viewsets.ModelViewSet):
+    serializer_class = BillSerializer
+    permission_classes = [IsAuthenticated]
+    def get_queryset(self):
+        resident = self.request.user
+        queryset = Bill.objects. filter(resident=resident, payment_status='UNPAID')
+        return queryset
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
@@ -116,20 +135,17 @@ class BillViewSet(viewsets.ModelViewSet):
         serializer.save(payment_status='PAID')  # Cập nhật trạng thái thanh toán thành 'PAID'
         return Response(serializer.data)
 
-class PaymentViewSet(viewsets.ModelViewSet): #hóa đơn chưa thanh toán
-    serializer_class = BillSerializer
-    permission_classes = [IsAuthenticated]
-    def get_queryset(self):
-        resident = self.request.user
-        queryset = Bill.objects.filter(payment_status='UNPAID') if resident.is_superuser else Bill.objects.filter(resident=resident)
-        return queryset
-
 class FaMemberViewSet(viewsets.ModelViewSet):
     queryset = FaMember.objects.all()
     serializer_class = FaMemberSerializer
     permission_classes = [permissions.IsAuthenticated]
-    def get_queryset(self): # Chỉ xem được của mình
-        return FaMember.objects.filter(resident=self.request.user)
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return FaMember.objects.all()
+        elif user.is_staff:
+            return FaMember.objects.filter(id=user.id)
+        return FaMember.objects.none()
 
 class FeedbackViewSet(viewsets.ModelViewSet):
     queryset = Feedback.objects.all()
@@ -137,14 +153,14 @@ class FeedbackViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        if self.request.user.is_superuser:
-            return Feedback.objects.all()
-        return Feedback.objects.filter(resident=self.request.user)
+        resident = self.request.user
+        queryset = Feedback.objects.all() if resident.is_superuser else Feedback.objects.filter(resident=resident)
 
-    def list(self, request):
-        queryset = self.get_queryset()
-        serializer = FeedbackSerializer(queryset, many=True)
-        return Response(serializer.data)
+        resolved_status = self.request.query_params.get('resolved', None)
+        if resolved_status is not None:
+            queryset = queryset.filter(resolved=(resolved_status.lower() == 'true'))
+
+        return queryset
 
     def create(self, request):
         serializer = FeedbackSerializer(data=request.data)
@@ -153,12 +169,16 @@ class FeedbackViewSet(viewsets.ModelViewSet):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['put'], permission_classes=[IsAdminUser])
-    def resolve(self, request, pk=None):
+    @action(detail=True, methods=['patch'])  # Change 'put' to 'patch'
+    def mark_as_resolved(self, request, pk=None):
+        if not request.user.is_superuser:
+            return Response({"detail": "Only superusers can mark feedback as resolved."},
+                            status=status.HTTP_403_FORBIDDEN)
+
         feedback = self.get_object()
-        feedback.resolved = True
-        feedback.save()
-        serializer = FeedbackSerializer(feedback)
+        serializer = self.get_serializer(instance=feedback, data={'resolved': True}, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
         return Response(serializer.data)
 
     def get_object(self):
@@ -166,9 +186,9 @@ class FeedbackViewSet(viewsets.ModelViewSet):
             feedback = super().get_object()
             if self.request.user.is_superuser or feedback.resident == self.request.user:
                 return feedback
-            raise Http404
+            raise Http404("Feedback not found or you don't have permission to access it.")
         except Feedback.DoesNotExist:
-            raise Http404
+            raise Http404("Feedback not found.")
 
 
 class SurveyViewSet(viewsets.ModelViewSet):
