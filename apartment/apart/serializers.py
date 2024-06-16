@@ -46,6 +46,8 @@ class FlatSerializer(ModelSerializer):
         fields = ["id", "number", "floor"]
 
 class ItemSerializer(ModelSerializer):
+    first_name = serializers.CharField(source='resident.first_name')
+    last_name = serializers.CharField(source='resident.last_name')
     class Meta:
         model = Item
         fields = '__all__'

@@ -75,22 +75,41 @@ class ItemViewSet(viewsets.ModelViewSet):
     serializer_class = ItemSerializer
     permission_classes = [IsAuthenticated]
 
-    def get_queryset(self): # Chỉ xem được đồ của mình
-        return Item.objects.filter(resident=self.request.user)
-    @action(detail=False, methods=['get'], url_path='my-items')
-    def my_items(self, request):
-        # Lấy danh sách các món hàng của cư dân hiện đang ở trạng thái "Chờ nhận"
-        items = self.queryset.filter(resident=request.user, status='PENDING')
-        serializer = self.get_serializer(items, many=True)
-        return Response(serializer.data)
+    def get_queryset(self):
+        user = self.request.user
+        queryset = Item.objects.all() if user.is_superuser else Item.objects.filter(resident=user)
 
-    @action(detail=True, methods=['post'], url_path='mark-received')
+        status_filter = self.request.query_params.get('status', None)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter.upper())
+
+        return queryset
+
+
+    # @action(detail=False, methods=['get'], url_path='my-items')
+    # def my_items(self, request):
+    #     # Lấy danh sách các món hàng của cư dân hiện đang ở trạng thái "Chờ nhận"
+    #     items = self.queryset.filter(resident=request.user, status='PENDING')
+    #     serializer = self.get_serializer(items, many=True)
+    #     return Response(serializer.data)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['patch'], url_path='mark-received')
     def mark_received(self, request, pk=None):
+        if not request.user.is_superuser:
+            return Response({"detail": "Only superusers can mark items as received."},
+                            status=status.HTTP_403_FORBIDDEN)
+
         item = self.get_object()
-        if item.resident == request.user:
-            item.status = 'RECEIVED'
-            item.save()
-        return Response({'status': 'Item is received by resident'}, status=status.HTTP_200_OK)
+        serializer = self.get_serializer(instance=item, data={'status': 'RECEIVED'}, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
 
 class BillViewSet(viewsets.ModelViewSet):
     serializer_class = BillSerializer
@@ -132,7 +151,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save(payment_status='PAID')  # Cập nhật trạng thái thanh toán thành 'PAID'
+        serializer.save(payment_status='PAID')
         return Response(serializer.data)
 
 class FaMemberViewSet(viewsets.ModelViewSet):
