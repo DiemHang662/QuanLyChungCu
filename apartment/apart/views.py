@@ -21,7 +21,7 @@ class ResidentViewSet(viewsets.ModelViewSet):
     serializer_class = ResidentSerializer
 
     def get_permissions(self):
-        if self.action in ['get_current_user', 'lock_account', 'check_account_status']:
+        if self.action in ['get_current_user', 'lock_account', 'check_account_status','change_password']:
             return [permissions.IsAuthenticated()]
         elif self.action == 'create_new_account':
             return [permissions.AllowAny()]
@@ -56,7 +56,6 @@ class ResidentViewSet(viewsets.ModelViewSet):
         user = self.get_object()
         return Response({'is_active': user.is_active}, status=status.HTTP_200_OK)
 
-
     @action(methods=['post'], url_path='create-new-account', detail=False)
     def create_new_account(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -65,6 +64,19 @@ class ResidentViewSet(viewsets.ModelViewSet):
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
+    @action(methods=['post'], detail=False, url_path='change-password')
+    def change_password(self, request):
+        user = request.user
+        old_password = request.data.get('old_password')
+        new_password = request.data.get('new_password')
+
+        if not user.check_password(old_password):
+            return Response({'error': 'Mật khẩu cũ không chính xác.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(new_password)
+        user.save()
+
+        return Response({'message': 'Đã thay đổi mật khẩu thành công.'}, status=status.HTTP_200_OK)
 
 class FlatViewSet(viewsets.ModelViewSet):
     queryset = Flat.objects.all()
@@ -77,7 +89,10 @@ class ItemViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = Item.objects.all() if user.is_superuser else Item.objects.filter(resident=user)
+        if user.is_superuser:
+            queryset = Item.objects.all()
+        else:
+            queryset = Item.objects.filter(resident=user)
 
         status_filter = self.request.query_params.get('status', None)
         if status_filter:
@@ -85,31 +100,31 @@ class ItemViewSet(viewsets.ModelViewSet):
 
         return queryset
 
+    @action(methods=['post'], detail=False, url_path='create-item')
+    def create_item(self, request, *args, **kwargs):
+        if not request.user.is_superuser:
+            return Response({"error": "Only superusers can create item"}, status=status.HTTP_403_FORBIDDEN)
 
-    # @action(detail=False, methods=['get'], url_path='my-items')
-    # def my_items(self, request):
-    #     # Lấy danh sách các món hàng của cư dân hiện đang ở trạng thái "Chờ nhận"
-    #     items = self.queryset.filter(resident=request.user, status='PENDING')
-    #     serializer = self.get_serializer(items, many=True)
-    #     return Response(serializer.data)
-
-    def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
-    @action(detail=True, methods=['patch'], url_path='mark-received')
+    @action(detail=True, methods=['patch'])
     def mark_received(self, request, pk=None):
-        if not request.user.is_superuser:
-            return Response({"detail": "Only superusers can mark items as received."},
+        user = request.user
+        item = self.get_object()
+
+        if not (user.is_superuser and user.is_staff):
+            return Response({"detail": "Only superusers or staff members can mark items as received."},
                             status=status.HTTP_403_FORBIDDEN)
 
-        item = self.get_object()
         serializer = self.get_serializer(instance=item, data={'status': 'RECEIVED'}, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
 
 class BillViewSet(viewsets.ModelViewSet):
     serializer_class = BillSerializer

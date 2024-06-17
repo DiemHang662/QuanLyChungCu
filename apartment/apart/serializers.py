@@ -9,6 +9,7 @@ class ResidentSerializer(serializers.ModelSerializer):
     avatar = serializers.ImageField(write_only=True, required=False)
     is_staff = serializers.BooleanField(required=False, default=False)
     is_superuser = serializers.BooleanField(required=False, default=False)
+    password = serializers.CharField(write_only=True, required=True, style={'input_type': 'password'})
 
     def get_avatar_url(self, instance):
         if instance.avatar:
@@ -34,7 +35,8 @@ class ResidentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Resident
-        fields = ['id', 'first_name', 'last_name', 'email','phone', 'username', 'password', 'avatar', 'avatar_url', 'is_staff', 'is_superuser']
+        fields = ['id', 'first_name', 'last_name', 'email', 'phone', 'username', 'password', 'avatar', 'avatar_url',
+                  'is_staff', 'is_superuser']
         extra_kwargs = {
             'password': {'write_only': True},
             'is_active': {'read_only': True}
@@ -48,6 +50,7 @@ class FlatSerializer(ModelSerializer):
 class ItemSerializer(ModelSerializer):
     first_name = serializers.CharField(source='resident.first_name')
     last_name = serializers.CharField(source='resident.last_name')
+
     class Meta:
         model = Item
         fields = '__all__'
