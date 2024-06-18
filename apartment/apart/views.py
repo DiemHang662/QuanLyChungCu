@@ -5,6 +5,7 @@ from django.db.models import Max
 from django.shortcuts import render
 from django.http import Http404
 from rest_framework import viewsets, permissions, status, generics
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import action
@@ -21,10 +22,10 @@ class ResidentViewSet(viewsets.ModelViewSet):
     serializer_class = ResidentSerializer
 
     def get_permissions(self):
-        if self.action in ['get_current_user', 'lock_account', 'check_account_status','change_password']:
+        if self.action in ['get_current_user', 'lock_account', 'check_account_status', 'change_password']:
             return [permissions.IsAuthenticated()]
         elif self.action == 'create_new_account':
-            return [permissions.AllowAny()]
+            return [permissions.IsAuthenticated(), permissions.IsAdminUser()]
         return [permissions.AllowAny()]
 
     def get_queryset(self):
@@ -58,6 +59,9 @@ class ResidentViewSet(viewsets.ModelViewSet):
 
     @action(methods=['post'], url_path='create-new-account', detail=False)
     def create_new_account(self, request):
+        if not request.user.is_superuser:
+            return Response({'error': 'Bạn không có quyền thực hiện hành động này.'}, status=status.HTTP_403_FORBIDDEN)
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -77,6 +81,18 @@ class ResidentViewSet(viewsets.ModelViewSet):
         user.save()
 
         return Response({'message': 'Đã thay đổi mật khẩu thành công.'}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['patch'], url_path='change-avatar', parser_classes=[MultiPartParser, FormParser])
+    def change_avatar(self, request):
+        user = request.user
+        if 'avatar' not in request.data:
+            return Response({"error": "Avatar is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        avatar = request.data['avatar']
+        user.avatar = avatar
+        user.save()
+
+        return Response({"message": "Avatar updated successfully"}, status=status.HTTP_200_OK)
 
 class FlatViewSet(viewsets.ModelViewSet):
     queryset = Flat.objects.all()
