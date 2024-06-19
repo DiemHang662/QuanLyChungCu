@@ -60,17 +60,12 @@ class BillSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(source='resident.first_name', read_only=True)
     last_name = serializers.CharField(source='resident.last_name', read_only=True)
     phone = serializers.CharField(source='resident.phone', read_only=True)
-    total_amount = serializers.SerializerMethodField()
     resident_id = serializers.PrimaryKeyRelatedField(queryset=Resident.objects.all(), write_only=True, source='resident')
 
     class Meta:
         model = Bill
-        fields = ['id', 'resident_id', 'first_name', 'last_name', 'phone', 'bill_type', 'issue_date', 'due_date', 'amount', 'total_amount', 'payment_status']
+        fields = ['id', 'resident_id', 'first_name', 'last_name', 'phone', 'bill_type', 'issue_date', 'due_date', 'amount', 'payment_status']
 
-    def get_total_amount(self, obj):
-        transaction_fee = 2
-        total_amount = obj.amount + transaction_fee
-        return f"{total_amount:.3f}"
 
 class FaMemberSerializer(ModelSerializer):
     first_name = serializers.CharField(source='resident.first_name', read_only=True)

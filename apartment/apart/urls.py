@@ -3,7 +3,7 @@ from django.urls import path, include
 from . import views
 from .admin import admin_site
 from rest_framework.routers import DefaultRouter
-from .views import StatisticalViewSet
+from .views import StatisticalViewSet, PaymentViewSet
 
 router = DefaultRouter()
 router.register('residents', views.ResidentViewSet, basename='resident')
@@ -21,5 +21,8 @@ urlpatterns = [
     path('', include(router.urls)),
     path('admin/', admin_site.urls),
     path('api/', include(router.urls)),
+    path('payment/', views.payment_view, name='payment'),
+    #path('zalo/payment/', views.create_payment, name='zalo_payment'),
     path('api/statistics/<int:pk>/', StatisticalViewSet.as_view({'get': 'retrieve'}), name='statistics-api'),
 ]
+

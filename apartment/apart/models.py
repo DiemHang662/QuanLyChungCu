@@ -82,11 +82,3 @@ class SurveyResult(models.Model):
     def __str__(self):
         return self.survey.title
 
-class FaMember(models.Model):
-    name = models.CharField(max_length=100)
-    resident = models.ForeignKey(Resident, on_delete=models.CASCADE)
-    numberXe = models.CharField(max_length=8)
-
-    def __str__(self):
-        return self.name
-

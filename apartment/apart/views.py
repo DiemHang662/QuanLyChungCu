@@ -1,20 +1,23 @@
+import hashlib
+import hmac
 import json
-
-from django.conf import settings
+import urllib
+from datetime import time
+from distutils.command.config import config
+import requests
 from django.db.models import Max
 from django.shortcuts import render
-from django.http import Http404
-from rest_framework import viewsets, permissions, status, generics
+from django.http import Http404, JsonResponse, HttpRequest
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework import viewsets, permissions, status
 from rest_framework.parsers import FormParser, MultiPartParser
-from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from rest_framework.views import APIView
-from . import serializers
 from .models import Flat, Item, Resident, Feedback, Survey, SurveyResult, Bill, FaMember
-from .perms import IsOwnerOrReadOnly
 from .serializers import ResidentSerializer, FlatSerializer, ItemSerializer, FeedbackSerializer, SurveySerializer, \
     SurveyResultSerializer, BillSerializer, FaMemberSerializer
+
 
 
 class ResidentViewSet(viewsets.ModelViewSet):
@@ -170,7 +173,6 @@ class BillViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
-
 class PaymentViewSet(viewsets.ModelViewSet):
     serializer_class = BillSerializer
     permission_classes = [IsAuthenticated]
@@ -184,6 +186,59 @@ class PaymentViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save(payment_status='PAID')
         return Response(serializer.data)
+
+
+@csrf_exempt
+def payment_view(request: HttpRequest):
+    partnerCode = "MOMO"
+    accessKey = "F8BBA842ECF85"
+    secretKey = "K951B6PE1waDMi640xX08PD3vg6EkVlz"
+    requestId = f"{partnerCode}{int(time.time() * 1000)}"
+    orderId = 'MM' + str(int(time.time() * 1000))
+    orderInfo = "pay with MoMo"
+    redirectUrl = "https://momo.vn/return"
+    ipnUrl = "https://callback.url/notify"
+    amount = request.headers.get('amount', '')
+    requestType = "payWithATM"
+    extraData = ""
+
+    # Construct raw signature
+    rawSignature = f"accessKey={accessKey}&amount={amount}&extraData={extraData}&ipnUrl={ipnUrl}&orderId={orderId}&orderInfo={orderInfo}&partnerCode={partnerCode}&redirectUrl={redirectUrl}&requestId={requestId}&requestType={requestType}"
+
+    # Generate signature using HMAC-SHA256
+    signature = hmac.new(secretKey.encode(), rawSignature.encode(), hashlib.sha256).hexdigest()
+
+    # Create request body as JSON
+    data = {
+        "partnerCode": partnerCode,
+        "accessKey": accessKey,
+        "requestId": requestId,
+        "amount": amount,
+        "orderId": orderId,
+        "orderInfo": orderInfo,
+        "redirectUrl": redirectUrl,
+        "ipnUrl": ipnUrl,
+        "extraData": extraData,
+        "requestType": requestType,
+        "signature": signature,
+        "lang": "vi"
+    }
+
+    # Send request to MoMo endpoint
+    url = 'https://test-payment.momo.vn/v2/gateway/api/create'
+    headers = {'Content-Type': 'application/json'}
+    response = requests.post(url, json=data, headers=headers)
+
+    # Process response
+    if response.status_code == 200:
+        response_data = response.json()
+        pay_url = response_data.get('payUrl')
+        return JsonResponse(response_data)
+    else:
+        return JsonResponse({"error": f"Failed to create payment request. Status code: {response.status_code}"},
+                            status=500)
+
+
 
 class FaMemberViewSet(viewsets.ModelViewSet):
     queryset = FaMember.objects.all()
@@ -258,6 +313,17 @@ class SurveyViewSet(viewsets.ModelViewSet):
         survey = self.get_object()
         serializer = self.serializer_class(survey)
         return Response(serializer.data)
+
+    @action(methods=['post'], detail=False, url_path='create-survey')
+    def create_survey(self, request, *args, **kwargs):
+        if not request.user.is_superuser:
+            return Response({"error": "Only superusers can create survey"}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 class SurveyResultViewSet(viewsets.ModelViewSet):
     queryset = SurveyResult.objects.all()

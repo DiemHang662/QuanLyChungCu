@@ -157,3 +157,12 @@ REST_FRAMEWORK = {
 }
 
 
+
+ZALOPAY_APP_ID = '2553'
+ZALOPAY_KEY_1 = 'PcY4iZIKFCIdgZvA6ueMcMHHUbRLYjPL'
+ZALOPAY_KEY_2 = 'YkLtgPl8HHhfvMuDHPwKfgfsY4Ydm9eIz'
+ZALOPAY_URL = 'https://sandbox.zalopay.com.vn/v001/tpe/payqr'  # Sandbox URL for testing
+ZALOPAY_ENDPOINT_URL ='https://sb-openapi.zalopay.vn/v2/create'
+
+
+
