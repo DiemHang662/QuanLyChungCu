@@ -19,7 +19,7 @@ class Flat(models.Model):
 
 class Bill(models.Model):
     resident = models.ForeignKey(Resident, on_delete=models.CASCADE)
-    amount = models.DecimalField(max_digits=10, decimal_places=3)
+    amount = models.DecimalField(max_digits=10, decimal_places=0)
     issue_date = models.DateField()
     due_date = models.DateField()
     bill_type = models.CharField(max_length=50)
@@ -28,6 +28,7 @@ class Bill(models.Model):
         ('PAID', 'Paid'),
     ]
     payment_status = models.CharField(max_length=10, choices=status_choices, default='UNPAID')
+
 
 
     def __str__(self):

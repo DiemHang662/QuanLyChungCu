@@ -22,7 +22,6 @@ urlpatterns = [
     path('admin/', admin_site.urls),
     path('api/', include(router.urls)),
     path('payment/', views.payment_view, name='payment'),
-    #path('zalo/payment/', views.create_payment, name='zalo_payment'),
     path('api/statistics/<int:pk>/', StatisticalViewSet.as_view({'get': 'retrieve'}), name='statistics-api'),
 ]
 
