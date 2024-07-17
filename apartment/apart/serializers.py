@@ -2,7 +2,9 @@ from django.contrib.auth.hashers import make_password
 from rest_framework import serializers
 from rest_framework.fields import SerializerMethodField
 from rest_framework.serializers import ModelSerializer
-from .models import Resident, Flat, Bill, Item, Feedback, Survey, FaMember, SurveyResult
+from .models import Resident, Flat, Bill, Item, Feedback, Survey, FaMember, SurveyResult, Product, Cart, \
+    CartProduct
+
 
 class ResidentSerializer(serializers.ModelSerializer):
     avatar_url = serializers.SerializerMethodField()
@@ -41,6 +43,40 @@ class ResidentSerializer(serializers.ModelSerializer):
             'password': {'write_only': True},
             'is_active': {'read_only': True}
         }
+class ProductSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+    image = serializers.ImageField(write_only=True, required=False)
+    def get_image_url(self, instance):
+        if instance.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(instance.image.url)
+            return instance.image.url
+        return None
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep['image_url'] = self.get_image_url(instance)
+        return rep
+    class Meta:
+        model = Product
+        fields = '__all__'
+
+class CartProductSerializer(serializers.ModelSerializer):
+    product = ProductSerializer(read_only=True)
+    product_id = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all(), write_only=True, source='product')
+
+    class Meta:
+        model = CartProduct
+        fields = ['id', 'product', 'product_id', 'quantity']
+
+class CartSerializer(serializers.ModelSerializer):
+    items = CartProductSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Cart
+        fields = ['id', 'resident', 'items']
+
 
 class FlatSerializer(ModelSerializer):
     class Meta:
@@ -55,16 +91,38 @@ class ItemSerializer(ModelSerializer):
         model = Item
         fields = '__all__'
 
-
 class BillSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(source='resident.first_name', read_only=True)
     last_name = serializers.CharField(source='resident.last_name', read_only=True)
     phone = serializers.CharField(source='resident.phone', read_only=True)
     resident_id = serializers.PrimaryKeyRelatedField(queryset=Resident.objects.all(), write_only=True, source='resident')
+    image_url = serializers.SerializerMethodField()
+    image = serializers.ImageField(write_only=True, required=False)
+    avatar_url = serializers.SerializerMethodField()
 
+    def get_image_url(self, instance):
+        if instance.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(instance.image.url)
+            return instance.image.url
+        return None
+    def get_avatar_url(self, instance):
+        if instance.resident.avatar:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(instance.resident.avatar.url)
+            return instance.resident.avatar.url
+        return None
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep['image_url'] = self.get_image_url(instance)
+        rep['avatar_url'] = self.get_avatar_url(instance)
+        return rep
     class Meta:
         model = Bill
-        fields = ['id', 'resident_id', 'first_name', 'last_name', 'phone', 'bill_type', 'issue_date', 'due_date', 'amount', 'payment_status']
+        fields = '__all__'
 
 
 class FaMemberSerializer(ModelSerializer):

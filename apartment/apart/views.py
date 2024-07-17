@@ -2,7 +2,7 @@ import hashlib
 import hmac
 import json
 import urllib
-from datetime import time
+from datetime import time, datetime
 from distutils.command.config import config
 import requests
 from django.db.models import Max
@@ -14,10 +14,9 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from .models import Flat, Item, Resident, Feedback, Survey, SurveyResult, Bill, FaMember
+from .models import Flat, Item, Resident, Feedback, Survey, SurveyResult, Bill, FaMember, Cart, Product, CartProduct
 from .serializers import ResidentSerializer, FlatSerializer, ItemSerializer, FeedbackSerializer, SurveySerializer, \
-    SurveyResultSerializer, BillSerializer, FaMemberSerializer
-
+    SurveyResultSerializer, BillSerializer, FaMemberSerializer, CartSerializer, ProductSerializer
 
 
 class ResidentViewSet(viewsets.ModelViewSet):
@@ -97,53 +96,60 @@ class ResidentViewSet(viewsets.ModelViewSet):
 
         return Response({"message": "Avatar updated successfully"}, status=status.HTTP_200_OK)
 
-class FlatViewSet(viewsets.ModelViewSet):
-    queryset = Flat.objects.all()
-    serializer_class = FlatSerializer
-
-class ItemViewSet(viewsets.ModelViewSet):
-    queryset = Item.objects.all()
-    serializer_class = ItemSerializer
+class ProductViewSet(viewsets.ModelViewSet):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+    permission_classes = [permissions.AllowAny]
+class CartViewSet(viewsets.ModelViewSet):
+    serializer_class = CartSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser:
-            queryset = Item.objects.all()
-        else:
-            queryset = Item.objects.filter(resident=user)
+        return Cart.objects.filter(resident=self.request.user)
 
-        status_filter = self.request.query_params.get('status', None)
-        if status_filter:
-            queryset = queryset.filter(status=status_filter.upper())
-
-        return queryset
-
-    @action(methods=['post'], detail=False, url_path='create-item')
-    def create_item(self, request, *args, **kwargs):
-        if not request.user.is_superuser:
-            return Response({"error": "Only superusers can create item"}, status=status.HTTP_403_FORBIDDEN)
-
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-
-    @action(detail=True, methods=['patch'])
-    def mark_received(self, request, pk=None):
+    @action(methods=['post'], detail=False, url_path='add-product')
+    def add_product(self, request):
         user = request.user
-        item = self.get_object()
+        product_id = request.data.get('product_id')
+        quantity = request.data.get('quantity', 1)
 
-        if not (user.is_superuser and user.is_staff):
-            return Response({"detail": "Only superusers or staff members can mark items as received."},
-                            status=status.HTTP_403_FORBIDDEN)
+        try:
+            product = Product.objects.get(id=product_id)
+        except Product.DoesNotExist:
+            return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        serializer = self.get_serializer(instance=item, data={'status': 'RECEIVED'}, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data)
+        cart, created = Cart.objects.get_or_create(resident=user)
 
+        cart_item, created = CartProduct.objects.get_or_create(cart=cart, product=product)
+        if not created:
+            cart_item.quantity += quantity
+        else:
+            cart_item.quantity = quantity
+
+        cart_item.save()
+        return Response({'status': 'Product added to cart'}, status=status.HTTP_200_OK)
+
+    @action(methods=['post'], detail=False, url_path='purchase')
+    def purchase(self, request):
+        user = request.user
+        cart = Cart.objects.get(resident=user)
+
+        if not cart.items.exists():
+            return Response({'error': 'Cart is empty'}, status=status.HTTP_400_BAD_REQUEST)
+
+        total_amount = sum([item.quantity * item.product.price for item in cart.cartproduct_set.all()])
+
+        bill = Bill.objects.create(
+            resident=user,
+            amount=total_amount,
+            issue_date=datetime.date.today(),
+            due_date=datetime.date.today() + datetime.timedelta(days=30),
+            bill_type='Purchase',
+            payment_status='UNPAID'
+        )
+
+        cart.items.clear()
+        return Response({'status': 'Purchase successful', 'bill_id': bill.id}, status=status.HTTP_201_CREATED)
 
 class BillViewSet(viewsets.ModelViewSet):
     serializer_class = BillSerializer
@@ -238,7 +244,52 @@ def payment_view(request: HttpRequest):
         return JsonResponse({"error": f"Failed to create payment request. Status code: {response.status_code}"},
                             status=500)
 
+class FlatViewSet(viewsets.ModelViewSet):
+    queryset = Flat.objects.all()
+    serializer_class = FlatSerializer
 
+class ItemViewSet(viewsets.ModelViewSet):
+    queryset = Item.objects.all()
+    serializer_class = ItemSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            queryset = Item.objects.all()
+        else:
+            queryset = Item.objects.filter(resident=user)
+
+        status_filter = self.request.query_params.get('status', None)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter.upper())
+
+        return queryset
+
+    @action(methods=['post'], detail=False, url_path='create-item')
+    def create_item(self, request, *args, **kwargs):
+        if not request.user.is_superuser:
+            return Response({"error": "Only superusers can create item"}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    @action(detail=True, methods=['patch'])
+    def mark_received(self, request, pk=None):
+        user = request.user
+        item = self.get_object()
+
+        if not (user.is_superuser and user.is_staff):
+            return Response({"detail": "Only superusers or staff members can mark items as received."},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        serializer = self.get_serializer(instance=item, data={'status': 'RECEIVED'}, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
 
 class FaMemberViewSet(viewsets.ModelViewSet):
     queryset = FaMember.objects.all()

@@ -10,12 +10,23 @@ class Resident(AbstractUser):
     def __str__(self):
         return self.username
 
-class Flat(models.Model):
-    number = models.CharField(max_length=10)
-    floor = models.IntegerField()
+class Product(models.Model):
+    name = models.CharField(max_length=100)
+    price = models.DecimalField(max_digits=10, decimal_places=0)
+    stock = models.PositiveIntegerField()
+    image = CloudinaryField('image', null=True)
 
     def __str__(self):
-        return self.number
+        return self.name
+
+class Cart(models.Model):
+    resident = models.OneToOneField(Resident, on_delete=models.CASCADE)
+    items = models.ManyToManyField(Product, through='CartProduct')
+
+class CartProduct(models.Model):
+    cart = models.ForeignKey(Cart, on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField()
 
 class Bill(models.Model):
     resident = models.ForeignKey(Resident, on_delete=models.CASCADE)
@@ -28,11 +39,17 @@ class Bill(models.Model):
         ('PAID', 'Paid'),
     ]
     payment_status = models.CharField(max_length=10, choices=status_choices, default='UNPAID')
-
-
+    image = CloudinaryField('image', null=True)
 
     def __str__(self):
         return self.bill_type
+
+class Flat(models.Model):
+    number = models.CharField(max_length=10)
+    floor = models.IntegerField()
+
+    def __str__(self):
+        return self.number
 
 class Item(models.Model):
     resident = models.ForeignKey(Resident, on_delete=models.CASCADE)

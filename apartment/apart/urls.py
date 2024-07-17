@@ -7,6 +7,8 @@ from .views import StatisticalViewSet, PaymentViewSet
 
 router = DefaultRouter()
 router.register('residents', views.ResidentViewSet, basename='resident')
+router.register('cart', views.CartViewSet, basename='cart')
+router.register('product', views.ProductViewSet, basename='product')
 router.register('flats', views.FlatViewSet, basename='flat')
 router.register('items', views.ItemViewSet, basename='item')
 router.register('famembers', views.FaMemberViewSet, basename='famember')

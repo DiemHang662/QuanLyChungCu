@@ -32,7 +32,7 @@ SECRET_KEY = 'django-insecure-o5k=0(s^dw%)bw)^+%2&8a*t(*_f+usid$c_-c8z8#xsj1rk5j
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
-ALLOWED_HOSTS = ['192.168.0.112']
+ALLOWED_HOSTS = ['192.168.70.124']
 
 
 # Application definition
@@ -46,10 +46,20 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'apart',
+    'corsheaders',
     'cloudinary',
     'oauth2_provider',
     'drf_yasg',
 ]
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # Add your frontend URL here
+    #"http://192.168.1.7:3000",  # Add specific IP if necessary
+    "http://192.168.0.105:3000",  # Add specific IP if necessary
+]
+
+CORS_ALLOW_CREDENTIALS = True
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -60,6 +70,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'apart.middleware.CheckIsActiveMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
 ]
 
 ROOT_URLCONF = 'apartment.urls'
@@ -158,11 +169,7 @@ REST_FRAMEWORK = {
 
 
 
-ZALOPAY_APP_ID = '2553'
-ZALOPAY_KEY_1 = 'PcY4iZIKFCIdgZvA6ueMcMHHUbRLYjPL'
-ZALOPAY_KEY_2 = 'YkLtgPl8HHhfvMuDHPwKfgfsY4Ydm9eIz'
-ZALOPAY_URL = 'https://sandbox.zalopay.com.vn/v001/tpe/payqr'  # Sandbox URL for testing
-ZALOPAY_ENDPOINT_URL ='https://sb-openapi.zalopay.vn/v2/create'
+
 
 
 
