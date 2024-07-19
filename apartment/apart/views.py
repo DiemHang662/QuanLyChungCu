@@ -6,7 +6,7 @@ from datetime import time, datetime
 from distutils.command.config import config
 import requests
 from django.db.models import Max
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from django.http import Http404, JsonResponse, HttpRequest
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import viewsets, permissions, status
@@ -16,7 +16,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from .models import Flat, Item, Resident, Feedback, Survey, SurveyResult, Bill, FaMember, Cart, Product, CartProduct
 from .serializers import ResidentSerializer, FlatSerializer, ItemSerializer, FeedbackSerializer, SurveySerializer, \
-    SurveyResultSerializer, BillSerializer, FaMemberSerializer, CartSerializer, ProductSerializer
+    SurveyResultSerializer, BillSerializer, FaMemberSerializer, CartSerializer, ProductSerializer, CartProductSerializer
 
 
 class ResidentViewSet(viewsets.ModelViewSet):
@@ -99,7 +99,7 @@ class ResidentViewSet(viewsets.ModelViewSet):
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
-    permission_classes = [permissions.AllowAny]
+
 class CartViewSet(viewsets.ModelViewSet):
     serializer_class = CartSerializer
     permission_classes = [IsAuthenticated]
@@ -111,45 +111,86 @@ class CartViewSet(viewsets.ModelViewSet):
     def add_product(self, request):
         user = request.user
         product_id = request.data.get('product_id')
-        quantity = request.data.get('quantity', 1)
+        quantity = int(request.data.get('quantity', 1))
 
         try:
-            product = Product.objects.get(id=product_id)
+            product = get_object_or_404(Product, id=product_id)
         except Product.DoesNotExist:
             return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
 
         cart, created = Cart.objects.get_or_create(resident=user)
+        cart_product, cart_product_created = CartProduct.objects.get_or_create(cart=cart, product=product)
 
-        cart_item, created = CartProduct.objects.get_or_create(cart=cart, product=product)
-        if not created:
-            cart_item.quantity += quantity
+        if not cart_product_created:
+            cart_product.quantity += quantity
         else:
-            cart_item.quantity = quantity
+            cart_product.quantity = quantity
 
-        cart_item.save()
-        return Response({'status': 'Product added to cart'}, status=status.HTTP_200_OK)
+        cart_product.save()
+        cart.refresh_from_db()
+        serialized_cart = CartSerializer(cart)
 
-    @action(methods=['post'], detail=False, url_path='purchase')
-    def purchase(self, request):
+        return Response({'status': 'Product added to cart', 'cart': serialized_cart.data}, status=status.HTTP_200_OK)
+
+    @action(methods=['get'], detail=False, url_path='cart-summary')
+    def cart_summary(self, request):
         user = request.user
-        cart = Cart.objects.get(resident=user)
+        try:
+            cart = Cart.objects.get(resident=user)
+        except Cart.DoesNotExist:
+            return Response({'error': 'Cart not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        if not cart.items.exists():
-            return Response({'error': 'Cart is empty'}, status=status.HTTP_400_BAD_REQUEST)
+        cart_products = CartProduct.objects.filter(cart=cart)
+        serialized_cart_products = CartProductSerializer(cart_products, many=True)
 
-        total_amount = sum([item.quantity * item.product.price for item in cart.cartproduct_set.all()])
+        total_price = sum(item.product.price * item.quantity for item in cart_products)
 
-        bill = Bill.objects.create(
-            resident=user,
-            amount=total_amount,
-            issue_date=datetime.date.today(),
-            due_date=datetime.date.today() + datetime.timedelta(days=30),
-            bill_type='Purchase',
-            payment_status='UNPAID'
-        )
+        return Response({'cart_products': serialized_cart_products.data, 'total_price': total_price}, status=status.HTTP_200_OK)
 
-        cart.items.clear()
-        return Response({'status': 'Purchase successful', 'bill_id': bill.id}, status=status.HTTP_201_CREATED)
+    @action(methods=['delete'], detail=True, url_path='delete-product')
+    def delete_product(self, request, pk=None):
+        user = request.user
+
+        try:
+            cart_product = CartProduct.objects.get(cart__resident=user, id=pk)
+            cart_product.delete()
+            return Response({'status': 'Product removed from cart'}, status=status.HTTP_204_NO_CONTENT)
+        except CartProduct.DoesNotExist:
+            return Response({'error': 'Product not found in cart'}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(methods=['post'], detail=False, url_path='update-product-quantity')
+    def update_product_quantity(self, request):
+        user = request.user
+        product_id = request.data.get('product_id')
+        quantity = int(request.data.get('quantity', 1))
+
+        try:
+            product = get_object_or_404(Product, id=product_id)
+        except Product.DoesNotExist:
+            return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            cart = Cart.objects.get(resident=user)
+            cart_product = CartProduct.objects.get(cart=cart, product=product)
+        except (Cart.DoesNotExist, CartProduct.DoesNotExist):
+            return Response({'error': 'Cart or CartProduct not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if quantity <= 0:
+            cart_product.delete()
+        else:
+            cart_product.quantity = quantity
+            cart_product.save()
+
+        total_price = sum(item.product.price * item.quantity for item in CartProduct.objects.filter(cart=cart))
+
+        serialized_cart = CartSerializer(cart)
+
+        return Response({
+            'status': 'Product quantity updated',
+            'cart': serialized_cart.data,
+            'total_price': total_price
+        }, status=status.HTTP_200_OK)
+
 
 class BillViewSet(viewsets.ModelViewSet):
     serializer_class = BillSerializer

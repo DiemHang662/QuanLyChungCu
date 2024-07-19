@@ -65,14 +65,13 @@ class ProductSerializer(serializers.ModelSerializer):
 class CartProductSerializer(serializers.ModelSerializer):
     product = ProductSerializer(read_only=True)
     product_id = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all(), write_only=True, source='product')
-
+    #quantity = serializers.IntegerField()
     class Meta:
         model = CartProduct
         fields = ['id', 'product', 'product_id', 'quantity']
 
 class CartSerializer(serializers.ModelSerializer):
-    items = CartProductSerializer(many=True, read_only=True)
-
+    items = CartProductSerializer(many=True, source='cartproduct_set', read_only=True)
     class Meta:
         model = Cart
         fields = ['id', 'resident', 'items']

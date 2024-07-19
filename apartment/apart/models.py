@@ -1,8 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from cloudinary.models import CloudinaryField
-# Create your models here.
-
 class Resident(AbstractUser):
     avatar = CloudinaryField('avatar',null=True)
     phone = models.CharField(max_length= 13, null = True, blank = True)
@@ -21,12 +19,14 @@ class Product(models.Model):
 
 class Cart(models.Model):
     resident = models.OneToOneField(Resident, on_delete=models.CASCADE)
-    items = models.ManyToManyField(Product, through='CartProduct')
 
 class CartProduct(models.Model):
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    quantity = models.PositiveIntegerField()
+    quantity = models.PositiveIntegerField(default=1)
+
+    def __str__(self):
+        return f"{self.cart.resident.username}'s Cart - {self.product.name}"
 
 class Bill(models.Model):
     resident = models.ForeignKey(Resident, on_delete=models.CASCADE)
