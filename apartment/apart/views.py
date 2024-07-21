@@ -1,9 +1,7 @@
 import hashlib
 import hmac
 import json
-import urllib
-from datetime import time, datetime
-from distutils.command.config import config
+from datetime import time
 import requests
 from django.db.models import Max
 from django.shortcuts import render, get_object_or_404
@@ -99,6 +97,7 @@ class ResidentViewSet(viewsets.ModelViewSet):
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
+
 
 class CartViewSet(viewsets.ModelViewSet):
     serializer_class = CartSerializer
