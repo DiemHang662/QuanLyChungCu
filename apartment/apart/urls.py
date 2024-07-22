@@ -3,7 +3,7 @@ from django.urls import path, include
 from . import views
 from .admin import admin_site
 from rest_framework.routers import DefaultRouter
-from .views import StatisticalViewSet
+from .views import StatisticalViewSet, create_bill_from_cart
 
 router = DefaultRouter()
 router.register('residents', views.ResidentViewSet, basename='resident')
@@ -24,6 +24,7 @@ urlpatterns = [
     path('admin/', admin_site.urls),
     path('api/', include(router.urls)),
     path('payment/', views.payment_view, name='payment'),
+    path('api/bills/create-bill-from-cart/<int:cart_id>/', views.create_bill_from_cart, name='create_bill_from_cart'),
     path('api/statistics/<int:pk>/', StatisticalViewSet.as_view({'get': 'retrieve'}), name='statistics-api'),
 ]
 

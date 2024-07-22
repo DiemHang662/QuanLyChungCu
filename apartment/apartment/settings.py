@@ -32,7 +32,7 @@ SECRET_KEY = 'django-insecure-o5k=0(s^dw%)bw)^+%2&8a*t(*_f+usid$c_-c8z8#xsj1rk5j
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
-ALLOWED_HOSTS = ['192.168.0.108']
+ALLOWED_HOSTS = ['192.168.4.124']
 
 
 # Application definition
@@ -156,8 +156,6 @@ CLIENT_ID = 'Oyl13CtUf1P9FE39omeIFcArmR95erKvk151Jhpl'
 CLIENT_SECRET='vxPObcUCtPZ25ZxHzujWQew34clKvPioOxLJuBYY8VYKBqFreHYjOxV1lamby4SIMwYJzjIWXWeKBTd9CCLKeg8ubbBfY4p99iqHkQPHnOpbWkuhwyer9hYFjDH64x9n'
 
 REST_FRAMEWORK = {
-    #'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    #'PAGE_SIZE': 10,
 
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'oauth2_provider.contrib.rest_framework.OAuth2Authentication',

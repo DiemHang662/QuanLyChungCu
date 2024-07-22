@@ -1,18 +1,22 @@
 import hashlib
 import hmac
 import json
-from datetime import time
+from datetime import time, date
 import requests
 from django.db.models import Max
 from django.shortcuts import render, get_object_or_404
 from django.http import Http404, JsonResponse, HttpRequest
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 from rest_framework import viewsets, permissions, status
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from .models import Flat, Item, Resident, Feedback, Survey, SurveyResult, Bill, FaMember, Cart, Product, CartProduct
+
+from . import paginators
+from .models import Flat, Item, Resident, Feedback, Survey, SurveyResult, Bill, FaMember, Cart, Product, CartProduct, \
+    BillProduct
 from .serializers import ResidentSerializer, FlatSerializer, ItemSerializer, FeedbackSerializer, SurveySerializer, \
     SurveyResultSerializer, BillSerializer, FaMemberSerializer, CartSerializer, ProductSerializer, CartProductSerializer
 
@@ -97,10 +101,11 @@ class ResidentViewSet(viewsets.ModelViewSet):
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
-
+    pagination_class = paginators.Paginator
 
 class CartViewSet(viewsets.ModelViewSet):
     serializer_class = CartSerializer
+    pagination_class = paginators.Paginator
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
@@ -193,6 +198,7 @@ class CartViewSet(viewsets.ModelViewSet):
 
 class BillViewSet(viewsets.ModelViewSet):
     serializer_class = BillSerializer
+    #pagination_class = paginators.Paginator
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
@@ -218,6 +224,43 @@ class BillViewSet(viewsets.ModelViewSet):
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
+@csrf_exempt
+def create_bill_from_cart(request, cart_id):
+    if request.method == 'POST':
+        try:
+            cart = Cart.objects.get(id=cart_id)
+            resident = cart.resident
+            cart_products = cart.cart_products.all()
+
+            total_amount = sum(item.product.price * item.quantity for item in cart_products)
+
+            # Create a new bill
+            bill = Bill.objects.create(
+                resident=resident,
+                amount=total_amount,
+                issue_date=date.today(),
+                due_date=date(2024, 8, 31)  # Example due date
+            )
+
+            # Add products to the bill
+            for item in cart_products:
+                BillProduct.objects.create(
+                    bill=bill,
+                    product=item.product,
+                    quantity=item.quantity,
+                    price=item.product.price
+                )
+
+            # Optionally, clear the cart
+            cart.cart_products.all().delete()
+
+            return JsonResponse({'id': bill.id, 'amount': bill.amount})
+
+        except Cart.DoesNotExist:
+            return JsonResponse({'error': 'Cart does not exist'}, status=404)
+    else:
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
 
 class PaymentViewSet(viewsets.ModelViewSet):
     serializer_class = BillSerializer
@@ -226,13 +269,13 @@ class PaymentViewSet(viewsets.ModelViewSet):
         resident = self.request.user
         queryset = Bill.objects. filter(resident=resident, payment_status='UNPAID')
         return queryset
+
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save(payment_status='PAID')
         return Response(serializer.data)
-
 
 @csrf_exempt
 def payment_view(request: HttpRequest):
@@ -287,10 +330,13 @@ def payment_view(request: HttpRequest):
 class FlatViewSet(viewsets.ModelViewSet):
     queryset = Flat.objects.all()
     serializer_class = FlatSerializer
+    pagination_class = paginators.Paginator
+
 
 class ItemViewSet(viewsets.ModelViewSet):
     queryset = Item.objects.all()
     serializer_class = ItemSerializer
+    pagination_class = paginators.Paginator
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
@@ -335,6 +381,7 @@ class FaMemberViewSet(viewsets.ModelViewSet):
     queryset = FaMember.objects.all()
     serializer_class = FaMemberSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = paginators.Paginator
     def get_queryset(self):
         user = self.request.user
         if user.is_superuser:
@@ -347,6 +394,7 @@ class FeedbackViewSet(viewsets.ModelViewSet):
     queryset = Feedback.objects.all()
     serializer_class = FeedbackSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = paginators.Paginator
 
     def get_queryset(self):
         resident = self.request.user
@@ -391,6 +439,7 @@ class SurveyViewSet(viewsets.ModelViewSet):
     queryset = Survey.objects.all()
     serializer_class = SurveySerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = paginators.Paginator
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -420,6 +469,7 @@ class SurveyResultViewSet(viewsets.ModelViewSet):
     queryset = SurveyResult.objects.all()
     serializer_class = SurveyResultSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = paginators.Paginator
 
     def get_queryset(self):
         # User chỉ xem được của mình
