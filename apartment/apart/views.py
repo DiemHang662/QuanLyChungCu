@@ -230,8 +230,7 @@ def create_bill_from_cart(request, cart_id):
         try:
             cart = Cart.objects.get(id=cart_id)
             resident = cart.resident
-            cart_products = cart.cart_products.all()
-
+            cart_products = cart.cartproduct_set.all()
             total_amount = sum(item.product.price * item.quantity for item in cart_products)
 
             # Create a new bill
@@ -239,22 +238,24 @@ def create_bill_from_cart(request, cart_id):
                 resident=resident,
                 amount=total_amount,
                 issue_date=date.today(),
-                due_date=date(2024, 8, 31)  # Example due date
+                due_date=date(2024, 8, 31),
+                bill_type="HÓA ĐƠN MUA HÀNG",
+                payment_status="UNPAID"
             )
 
-            # Add products to the bill
+            # Add products to the bill with pending status
             for item in cart_products:
                 BillProduct.objects.create(
                     bill=bill,
                     product=item.product,
                     quantity=item.quantity,
-                    price=item.product.price
+                    price=item.product.price,
                 )
 
-            # Optionally, clear the cart
-            cart.cart_products.all().delete()
+            # Clear the cart
+            cart.cartproduct_set.all().delete()
 
-            return JsonResponse({'id': bill.id, 'amount': bill.amount})
+            return JsonResponse({'id': bill.id, 'amount': bill.amount}, status=200)
 
         except Cart.DoesNotExist:
             return JsonResponse({'error': 'Cart does not exist'}, status=404)
