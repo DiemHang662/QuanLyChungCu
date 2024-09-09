@@ -3,7 +3,7 @@ from rest_framework import serializers
 from rest_framework.fields import SerializerMethodField
 from rest_framework.serializers import ModelSerializer
 from .models import Resident, Flat, Bill, Item, Feedback, Survey, FaMember, SurveyResult, Product, Cart, \
-    CartProduct
+    CartProduct, OrderProduct, Order
 
 
 class ResidentSerializer(serializers.ModelSerializer):
@@ -75,6 +75,24 @@ class CartSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cart
         fields = ['id', 'resident', 'items']
+
+class OrderProductSerializer(serializers.ModelSerializer):
+    product = ProductSerializer(read_only=True)
+    product_id = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all(), write_only=True, source='product')
+
+    class Meta:
+        model = OrderProduct
+        fields = ['id', 'product', 'product_id', 'quantity', 'price']
+
+class OrderSerializer(serializers.ModelSerializer):
+    order_products = OrderProductSerializer(many=True, read_only=True)
+    first_name = serializers.CharField(source='resident.first_name')
+    last_name = serializers.CharField(source='resident.last_name')
+    email = serializers.CharField(source='resident.email')
+    phone = serializers.CharField(source='resident.phone')
+    class Meta:
+        model = Order
+        fields = ['id', 'resident','first_name' ,'last_name','email','phone','total_amount', 'order_date', 'status', 'order_products']
 
 
 class FlatSerializer(ModelSerializer):

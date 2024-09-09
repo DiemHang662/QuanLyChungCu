@@ -3,7 +3,8 @@ from django.db.models import Count, Max
 from django.shortcuts import render
 from django.template.response import TemplateResponse
 from django.utils.html import mark_safe
-from .models import Resident, Flat, Bill, Item, Feedback, Survey, SurveyResult, FaMember, Product, Cart, CartProduct
+from .models import Resident, Flat, Bill, Item, Feedback, Survey, SurveyResult, FaMember, Product, Cart, CartProduct, \
+    Order, OrderProduct
 from django import forms
 from django.urls import path, reverse
 
@@ -47,6 +48,8 @@ admin_site.register(Resident)
 admin_site.register(Product)
 admin_site.register(Cart)
 admin_site.register(CartProduct)
+admin_site.register(Order)
+admin_site.register(OrderProduct)
 admin_site.register(Item)
 admin_site.register(Bill)
 admin_site.register(FaMember)

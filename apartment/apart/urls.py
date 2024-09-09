@@ -3,12 +3,13 @@ from django.urls import path, include
 from . import views
 from .admin import admin_site
 from rest_framework.routers import DefaultRouter
-from .views import StatisticalViewSet, create_bill_from_cart
+from .views import StatisticalViewSet
 
 router = DefaultRouter()
 router.register('residents', views.ResidentViewSet, basename='resident')
 router.register('cart', views.CartViewSet, basename='cart')
 router.register('product', views.ProductViewSet, basename='product')
+router.register('order', views.OrderViewSet, basename='order')
 router.register('flats', views.FlatViewSet, basename='flat')
 router.register('items', views.ItemViewSet, basename='item')
 router.register('famembers', views.FaMemberViewSet, basename='famember')
@@ -24,7 +25,6 @@ urlpatterns = [
     path('admin/', admin_site.urls),
     path('api/', include(router.urls)),
     path('payment/', views.payment_view, name='payment'),
-    path('api/bills/create-bill-from-cart/<int:cart_id>/', views.create_bill_from_cart, name='create_bill_from_cart'),
     path('api/statistics/<int:pk>/', StatisticalViewSet.as_view({'get': 'retrieve'}), name='statistics-api'),
 ]
 

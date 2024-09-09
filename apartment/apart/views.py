@@ -16,9 +16,10 @@ from rest_framework.decorators import action
 
 from . import paginators
 from .models import Flat, Item, Resident, Feedback, Survey, SurveyResult, Bill, FaMember, Cart, Product, CartProduct, \
-    BillProduct
+    Order, OrderProduct
 from .serializers import ResidentSerializer, FlatSerializer, ItemSerializer, FeedbackSerializer, SurveySerializer, \
-    SurveyResultSerializer, BillSerializer, FaMemberSerializer, CartSerializer, ProductSerializer, CartProductSerializer
+    SurveyResultSerializer, BillSerializer, FaMemberSerializer, CartSerializer, ProductSerializer, \
+    CartProductSerializer, OrderSerializer
 
 
 class ResidentViewSet(viewsets.ModelViewSet):
@@ -195,6 +196,50 @@ class CartViewSet(viewsets.ModelViewSet):
             'total_price': total_price
         }, status=status.HTTP_200_OK)
 
+class OrderViewSet(viewsets.ModelViewSet):
+    queryset = Order.objects.all()
+    serializer_class = OrderSerializer
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=['post'], url_path='create-order-from-cart')
+    def create_order_from_cart(self, request):
+        user = request.user
+        try:
+            cart = Cart.objects.get(resident=user)
+        except Cart.DoesNotExist:
+            return Response({'error': 'Cart not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        order = Order.objects.create(resident=user, total_amount=0)
+        cart_products = CartProduct.objects.filter(cart=cart)
+        total_amount = 0
+
+        for item in cart_products:
+            OrderProduct.objects.create(order=order, product=item.product, quantity=item.quantity,
+                                        price=item.product.price)
+            total_amount += item.product.price * item.quantity
+
+        order.total_amount = total_amount
+        order.save()
+        serialized_order = OrderSerializer(order)
+
+        # Clear the cart after creating the order
+        cart_products.delete()
+
+        return Response(serialized_order.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='confirm-order')
+    def confirm_order(self, request, pk=None):
+        user = request.user
+        try:
+            order = Order.objects.get(id=pk, resident=user, status='ĐANG CHỜ')
+            order.status = 'ĐANG GIAO'
+            order.save()
+            serializer = self.get_serializer(order)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Order.DoesNotExist:
+            return Response({'error': 'Order does not exist or you do not have permission to confirm it.'},
+                            status=status.HTTP_404_NOT_FOUND)
+
 
 class BillViewSet(viewsets.ModelViewSet):
     serializer_class = BillSerializer
@@ -224,43 +269,43 @@ class BillViewSet(viewsets.ModelViewSet):
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
-@csrf_exempt
-def create_bill_from_cart(request, cart_id):
-    if request.method == 'POST':
-        try:
-            cart = Cart.objects.get(id=cart_id)
-            resident = cart.resident
-            cart_products = cart.cartproduct_set.all()
-            total_amount = sum(item.product.price * item.quantity for item in cart_products)
-
-            # Create a new bill
-            bill = Bill.objects.create(
-                resident=resident,
-                amount=total_amount,
-                issue_date=date.today(),
-                due_date=date(2024, 8, 31),
-                bill_type="HÓA ĐƠN MUA HÀNG",
-                payment_status="UNPAID"
-            )
-
-            # Add products to the bill with pending status
-            for item in cart_products:
-                BillProduct.objects.create(
-                    bill=bill,
-                    product=item.product,
-                    quantity=item.quantity,
-                    price=item.product.price,
-                )
-
-            # Clear the cart
-            cart.cartproduct_set.all().delete()
-
-            return JsonResponse({'id': bill.id, 'amount': bill.amount}, status=200)
-
-        except Cart.DoesNotExist:
-            return JsonResponse({'error': 'Cart does not exist'}, status=404)
-    else:
-        return JsonResponse({'error': 'Method not allowed'}, status=405)
+# @csrf_exempt
+# def create_bill_from_cart(request, cart_id):
+#     if request.method == 'POST':
+#         try:
+#             cart = Cart.objects.get(id=cart_id)
+#             resident = cart.resident
+#             cart_products = cart.cartproduct_set.all()
+#             total_amount = sum(item.product.price * item.quantity for item in cart_products)
+#
+#             # Create a new bill
+#             bill = Bill.objects.create(
+#                 resident=resident,
+#                 amount=total_amount,
+#                 issue_date=date.today(),
+#                 due_date=date(2024, 8, 31),
+#                 bill_type="HÓA ĐƠN MUA HÀNG",
+#                 payment_status="UNPAID"
+#             )
+#
+#             # Add products to the bill with pending status
+#             for item in cart_products:
+#                 BillProduct.objects.create(
+#                     bill=bill,
+#                     product=item.product,
+#                     quantity=item.quantity,
+#                     price=item.product.price,
+#                 )
+#
+#             # Clear the cart
+#             cart.cartproduct_set.all().delete()
+#
+#             return JsonResponse({'id': bill.id, 'amount': bill.amount}, status=200)
+#
+#         except Cart.DoesNotExist:
+#             return JsonResponse({'error': 'Cart does not exist'}, status=404)
+#     else:
+#         return JsonResponse({'error': 'Method not allowed'}, status=405)
 
 
 class PaymentViewSet(viewsets.ModelViewSet):
@@ -470,7 +515,6 @@ class SurveyResultViewSet(viewsets.ModelViewSet):
     queryset = SurveyResult.objects.all()
     serializer_class = SurveyResultSerializer
     permission_classes = [permissions.IsAuthenticated]
-    pagination_class = paginators.Paginator
 
     def get_queryset(self):
         # User chỉ xem được của mình
@@ -495,7 +539,6 @@ class SurveyResultViewSet(viewsets.ModelViewSet):
 
     def update(self, request, pk=None):
         survey_result = self.get_object()
-        # Ensure that only the owner can update their own survey result
         if survey_result.resident != request.user:
             return Response(status=status.HTTP_403_FORBIDDEN)
         serializer = self.get_serializer(survey_result, data=request.data)
@@ -513,28 +556,27 @@ class SurveyResultViewSet(viewsets.ModelViewSet):
 
 
 class StatisticalViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+
     def list(self, request):
-        return render(request, 'admin/statistical.html', {"message": "Please provide a survey_id to get cleanliness statistics."}, status=400)
+        return Response({"message": "Please provide a survey_id to get cleanliness statistics."}, status=400)
 
     def retrieve(self, request, pk=None):
         try:
             queryset = SurveyResult.objects.filter(survey_id=pk)
             if not queryset.exists():
-                return render(request, 'admin/statistical.html', {"message": "Survey with the specified ID does not exist."}, status=404)
+                return Response({"message": "Survey with the specified ID does not exist."}, status=404)
 
             stats = queryset.aggregate(
                 maximum_cleanliness=Max('cleanliness_rating'),
-                maximum_facilities= Max('facilities_rating'),
-                maximum_services = Max('services_rating')
+                maximum_facilities=Max('facilities_rating'),
+                maximum_services=Max('services_rating')
             )
 
-            stats_json = json.dumps({
+            return Response({
                 'maximum_cleanliness': stats['maximum_cleanliness'],
                 'maximum_facilities': stats['maximum_facilities'],
                 'maximum_services': stats['maximum_services']
             })
-
-            return render(request, 'admin/statistical.html', {'stats_json': stats_json})
         except Exception as e:
-            return render(request, 'admin/statistical.html', {"message": str(e)}, status=500)
-
+            return Response({"message": str(e)}, status=500)
