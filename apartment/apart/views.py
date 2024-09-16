@@ -41,6 +41,11 @@ class ResidentViewSet(viewsets.ModelViewSet):
             return Resident.objects.filter(id=user.id)
         return Resident.objects.none()
 
+    @action(detail=False, methods=['get'], url_path='staff-count', permission_classes=[permissions.IsAuthenticated])
+    def staff_count(self, request):
+        staff_count = Resident.objects.filter(is_staff=True).count()  # Assuming is_staff indicates staff
+        return Response({'staff_count': staff_count})
+
     @action(methods=['get', 'patch'], url_path='current-user', detail=False)
     def get_current_user(self, request):
         user = request.user
@@ -258,6 +263,18 @@ class BillViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(payment_status=payment_status.upper())
         return queryset
 
+    @action(methods=['get'], detail=False, url_path='total-bills')
+    def total_bills(self, request, *args, **kwargs):
+        resident = self.request.user
+        if resident.is_superuser:
+            bills = Bill.objects.all()
+        else:
+            bills = Bill.objects.filter(resident=resident)
+
+        total_bills = bills.count()
+
+        return Response({'total_bills': total_bills}, status=status.HTTP_200_OK)
+
     @action(methods=['post'], detail=False, url_path='create-bill')
     def create_bill(self, request, *args, **kwargs):
         if not request.user.is_superuser:
@@ -376,7 +393,10 @@ def payment_view(request: HttpRequest):
 class FlatViewSet(viewsets.ModelViewSet):
     queryset = Flat.objects.all()
     serializer_class = FlatSerializer
-    pagination_class = paginators.Paginator
+    @action(detail=False, methods=['get'], url_path='flat-count', permission_classes=[permissions.IsAuthenticated])
+    def flat_count(self, request):
+        flat_count = Flat.objects.all().count()  # Assuming is_staff indicates staff
+        return Response({'flat_count': flat_count})
 
 
 class ItemViewSet(viewsets.ModelViewSet):
