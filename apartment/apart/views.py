@@ -1,19 +1,16 @@
 import hashlib
 import hmac
-import json
-from datetime import time, date
+from datetime import time
 import requests
 from django.db.models import Max
 from django.shortcuts import render, get_object_or_404
 from django.http import Http404, JsonResponse, HttpRequest
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
 from rest_framework import viewsets, permissions, status
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import action
-
 from . import paginators
 from .models import Flat, Item, Resident, Feedback, Survey, SurveyResult, Bill, FaMember, Cart, Product, CartProduct, \
     Order, OrderProduct
@@ -27,7 +24,7 @@ class ResidentViewSet(viewsets.ModelViewSet):
     serializer_class = ResidentSerializer
 
     def get_permissions(self):
-        if self.action in ['get_current_user', 'lock_account', 'check_account_status', 'change_password']:
+        if self.action in ['get_current_user', 'lock_account', 'check_account_status', 'change_password','delete_resident']:
             return [permissions.IsAuthenticated()]
         elif self.action == 'create_new_account':
             return [permissions.IsAuthenticated(), permissions.IsAdminUser()]
@@ -103,6 +100,21 @@ class ResidentViewSet(viewsets.ModelViewSet):
         user.save()
 
         return Response({"message": "Avatar updated successfully"}, status=status.HTTP_200_OK)
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['delete'], url_path='delete-resident')
+    def delete_resident(self, request, pk=None):
+        try:
+            resident = self.get_object()
+            resident.delete()
+            return Response({"message": "Resident deleted successfully!"}, status=status.HTTP_204_NO_CONTENT)
+        except Resident.DoesNotExist:
+            return Response({"error": "Resident not found."}, status=status.HTTP_404_NOT_FOUND)
 
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
@@ -286,43 +298,23 @@ class BillViewSet(viewsets.ModelViewSet):
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
-# @csrf_exempt
-# def create_bill_from_cart(request, cart_id):
-#     if request.method == 'POST':
-#         try:
-#             cart = Cart.objects.get(id=cart_id)
-#             resident = cart.resident
-#             cart_products = cart.cartproduct_set.all()
-#             total_amount = sum(item.product.price * item.quantity for item in cart_products)
-#
-#             # Create a new bill
-#             bill = Bill.objects.create(
-#                 resident=resident,
-#                 amount=total_amount,
-#                 issue_date=date.today(),
-#                 due_date=date(2024, 8, 31),
-#                 bill_type="HÓA ĐƠN MUA HÀNG",
-#                 payment_status="UNPAID"
-#             )
-#
-#             # Add products to the bill with pending status
-#             for item in cart_products:
-#                 BillProduct.objects.create(
-#                     bill=bill,
-#                     product=item.product,
-#                     quantity=item.quantity,
-#                     price=item.product.price,
-#                 )
-#
-#             # Clear the cart
-#             cart.cartproduct_set.all().delete()
-#
-#             return JsonResponse({'id': bill.id, 'amount': bill.amount}, status=200)
-#
-#         except Cart.DoesNotExist:
-#             return JsonResponse({'error': 'Cart does not exist'}, status=404)
-#     else:
-#         return JsonResponse({'error': 'Method not allowed'}, status=405)
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['delete'], url_path='delete-bill')
+    def delete_bill(self, request, pk=None):
+        try:
+            bill = self.get_object()
+            bill.delete()
+            return Response({"message": "Bill deleted successfully!"}, status=status.HTTP_204_NO_CONTENT)
+        except Bill.DoesNotExist:
+            return Response({"error": "Bill not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
 
 
 class PaymentViewSet(viewsets.ModelViewSet):
@@ -397,7 +389,6 @@ class FlatViewSet(viewsets.ModelViewSet):
     def flat_count(self, request):
         flat_count = Flat.objects.all().count()  # Assuming is_staff indicates staff
         return Response({'flat_count': flat_count})
-
 
 class ItemViewSet(viewsets.ModelViewSet):
     queryset = Item.objects.all()
@@ -505,7 +496,6 @@ class SurveyViewSet(viewsets.ModelViewSet):
     queryset = Survey.objects.all()
     serializer_class = SurveySerializer
     permission_classes = [permissions.IsAuthenticated]
-    pagination_class = paginators.Paginator
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -534,11 +524,14 @@ class SurveyViewSet(viewsets.ModelViewSet):
 class SurveyResultViewSet(viewsets.ModelViewSet):
     queryset = SurveyResult.objects.all()
     serializer_class = SurveyResultSerializer
-    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # User chỉ xem được của mình
-        return SurveyResult.objects.filter(resident=self.request.user)
+        user = self.request.user
+        if user.is_superuser:
+            return SurveyResult.objects.all()
+        elif user.is_staff:
+            return SurveyResult.objects.filter(id=user.id)
+        return SurveyResult.objects.none()
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -551,6 +544,18 @@ class SurveyResultViewSet(viewsets.ModelViewSet):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+    @action(methods=['get'], detail=False, url_path='survey-count')
+    def survey_count(self, request, *args, **kwargs):
+        resident = self.request.user
+        if resident.is_superuser:
+            survey = SurveyResult.objects.all()
+        else:
+            survey = SurveyResult.objects.filter(resident=resident)
+
+        survey_count = survey.count()
+
+        return Response({'survey_count': survey_count}, status=status.HTTP_200_OK)
 
     def retrieve(self, request, pk=None):
         survey_result = self.get_object()
@@ -600,3 +605,42 @@ class StatisticalViewSet(viewsets.ViewSet):
             })
         except Exception as e:
             return Response({"message": str(e)}, status=500)
+
+
+# @csrf_exempt
+# def create_bill_from_cart(request, cart_id):
+#     if request.method == 'POST':
+#         try:
+#             cart = Cart.objects.get(id=cart_id)
+#             resident = cart.resident
+#             cart_products = cart.cartproduct_set.all()
+#             total_amount = sum(item.product.price * item.quantity for item in cart_products)
+#
+#             # Create a new bill
+#             bill = Bill.objects.create(
+#                 resident=resident,
+#                 amount=total_amount,
+#                 issue_date=date.today(),
+#                 due_date=date(2024, 8, 31),
+#                 bill_type="HÓA ĐƠN MUA HÀNG",
+#                 payment_status="UNPAID"
+#             )
+#
+#             # Add products to the bill with pending status
+#             for item in cart_products:
+#                 BillProduct.objects.create(
+#                     bill=bill,
+#                     product=item.product,
+#                     quantity=item.quantity,
+#                     price=item.product.price,
+#                 )
+#
+#             # Clear the cart
+#             cart.cartproduct_set.all().delete()
+#
+#             return JsonResponse({'id': bill.id, 'amount': bill.amount}, status=200)
+#
+#         except Cart.DoesNotExist:
+#             return JsonResponse({'error': 'Cart does not exist'}, status=404)
+#     else:
+#         return JsonResponse({'error': 'Method not allowed'}, status=405)
