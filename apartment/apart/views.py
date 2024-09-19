@@ -30,6 +30,16 @@ class ResidentViewSet(viewsets.ModelViewSet):
             return [permissions.IsAuthenticated(), permissions.IsAdminUser()]
         return [permissions.AllowAny()]
 
+    @action(detail=False, methods=['get'], url_path='resident-statistics')
+    def resident_statistics(self, request):
+        staff_count = Resident.objects.filter(is_superuser=False).count()  # Assuming is_staff indicates staff
+        admin_count = Resident.objects.filter(is_superuser=True).count()  # Assuming is_superuser indicates admin
+
+        return Response({
+            'staff_count': staff_count,
+            'admin_count': admin_count,
+        })
+
     def get_queryset(self):
         user = self.request.user
         if user.is_superuser:
@@ -314,9 +324,21 @@ class BillViewSet(viewsets.ModelViewSet):
         except Bill.DoesNotExist:
             return Response({"error": "Bill not found."}, status=status.HTTP_404_NOT_FOUND)
 
+    @action(methods=['get'], detail=False, url_path='bill-statistics', permission_classes=[permissions.IsAuthenticated])
+    def bill_statistics(self, request, *args, **kwargs):
+        resident = self.request.user
+        if resident.is_superuser:
+            bills = Bill.objects.all()
+        else:
+            bills = Bill.objects.filter(resident=resident)
 
+        paid_bills = bills.filter(payment_status='PAID').count()
+        unpaid_bills = bills.filter(payment_status='UNPAID').count()
 
-
+        return Response({
+            'paid_bills': paid_bills,
+            'unpaid_bills': unpaid_bills
+        })
 class PaymentViewSet(viewsets.ModelViewSet):
     serializer_class = BillSerializer
     permission_classes = [IsAuthenticated]
