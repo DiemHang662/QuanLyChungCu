@@ -112,7 +112,7 @@ class BillSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(source='resident.first_name', read_only=True)
     last_name = serializers.CharField(source='resident.last_name', read_only=True)
     phone = serializers.CharField(source='resident.phone', read_only=True)
-    resident_id = serializers.PrimaryKeyRelatedField(queryset=Resident.objects.all(), write_only=True, source='resident')
+    #resident_id = serializers.PrimaryKeyRelatedField(queryset=Resident.objects.all(), write_only=True, source='resident')
     image_url = serializers.SerializerMethodField()
     image = serializers.ImageField(write_only=True, required=False)
     avatar_url = serializers.SerializerMethodField()
@@ -161,8 +161,11 @@ class SurveySerializer(ModelSerializer):
     class Meta:
         model = Survey
         fields = '__all__'
+        read_only_fields = ['creator', 'created_at']
 
 class SurveyResultSerializer(ModelSerializer):
+    first_name = serializers.CharField(source='resident.first_name', read_only=True)
+    last_name = serializers.CharField(source='resident.last_name', read_only=True)
     class Meta:
         model = SurveyResult
         fields = '__all__'

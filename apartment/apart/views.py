@@ -513,36 +513,33 @@ class FeedbackViewSet(viewsets.ModelViewSet):
         except Feedback.DoesNotExist:
             raise Http404("Feedback not found.")
 
-
 class SurveyViewSet(viewsets.ModelViewSet):
     queryset = Survey.objects.all()
     serializer_class = SurveySerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        if not self.request.user.is_superuser:
+            raise permissions.PermissionDenied("Only superusers can create surveys.")
+
+        # Lưu khảo sát với creator là người dùng hiện tại
+        serializer.save(creator=self.request.user)
 
     def list(self, request):
         queryset = self.get_queryset()
         serializer = self.serializer_class(queryset, many=True)
         return Response(serializer.data)
 
-    def retrieve(self, request, pk=None):
-        survey = self.get_object()
-        serializer = self.serializer_class(survey)
-        return Response(serializer.data)
-
     @action(methods=['post'], detail=False, url_path='create-survey')
     def create_survey(self, request, *args, **kwargs):
         if not request.user.is_superuser:
-            return Response({"error": "Only superusers can create survey"}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"error": "Only superusers can create surveys."}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-
 class SurveyResultViewSet(viewsets.ModelViewSet):
     queryset = SurveyResult.objects.all()
     serializer_class = SurveyResultSerializer
@@ -579,27 +576,22 @@ class SurveyResultViewSet(viewsets.ModelViewSet):
 
         return Response({'survey_count': survey_count}, status=status.HTTP_200_OK)
 
-    def retrieve(self, request, pk=None):
-        survey_result = self.get_object()
-        serializer = self.get_serializer(survey_result)
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
         return Response(serializer.data)
 
-    def update(self, request, pk=None):
-        survey_result = self.get_object()
-        if survey_result.resident != request.user:
-            return Response(status=status.HTTP_403_FORBIDDEN)
-        serializer = self.get_serializer(survey_result, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    @action(detail=True, methods=['delete'], url_path='delete-result')
+    def delete_result(self, request, pk=None):
+        try:
+            result = self.get_object()
+            result.delete()
+            return Response({"message": "Result deleted successfully!"}, status=status.HTTP_204_NO_CONTENT)
+        except Bill.DoesNotExist:
+            return Response({"error": "Result not found."}, status=status.HTTP_404_NOT_FOUND)
 
-    def destroy(self, request, pk=None):
-        survey_result = self.get_object()
-        if survey_result.resident != request.user:
-            return Response(status=status.HTTP_403_FORBIDDEN)
-        survey_result.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class StatisticalViewSet(viewsets.ViewSet):
